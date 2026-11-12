@@ -2,6 +2,20 @@
 
 All notable changes to this project are documented here.
 
+## [Unreleased]
+
+### Changed from ccsessions
+- Narrow layout: Projects and Sessions now share the top row and Details takes
+  the full width below them, instead of a Projects column beside Sessions
+  stacked above Details. Default widths of Projects and Sessions are unchanged.
+  A saved Sessions height from an earlier drag is ignored.
+
+### Fixed
+- Dragging a split bar no longer selects the text of the panes it crosses.
+- A split bar now moves only the two panes beside it: in the narrow layout,
+  the Details/Conversation bar leaves the Projects | Sessions row alone, and
+  in the wide layout the Sessions/Details bar leaves Projects alone.
+
 ## [0.1.0] — 2026-11-04
 
 First release. pi-sessions is a fork of

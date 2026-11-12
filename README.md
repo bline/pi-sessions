@@ -3,10 +3,9 @@
 A fast terminal UI for browsing, previewing, resuming and managing
 [pi](https://github.com/earendil-works/pi) coding agent sessions.
 
-A fork of [ccsessions](https://github.com/miskiewiczm/ccsessions) by Marek
-Miśkiewicz, which does the same for Claude Code. The full behaviour is
-specified in [SPECS.md](SPECS.md); changes from ccsessions are listed in
-[CHANGELOG.md](CHANGELOG.md).
+Based on a fork of [ccsessions](https://github.com/miskiewiczm/ccsessions) 
+by Marek Miśkiewicz, which does the same for Claude Code. Changes from 
+ccsessions are listed in [CHANGELOG.md](CHANGELOG.md).
 
 ## Features
 

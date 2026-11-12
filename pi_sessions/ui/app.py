@@ -224,6 +224,10 @@ class Splitter(Widget):
     }
     """
 
+    # a mouse-down here would otherwise start a Screen text selection that
+    # follows the drag into the neighbouring panes
+    ALLOW_SELECT = False
+
     # smallest pane, in cells on either side of the bar (border + one line)
     MIN_CELLS = 3
 
@@ -245,7 +249,8 @@ class Splitter(Widget):
         siblings = self.parent.children
         return siblings[siblings.index(self) - 1]
 
-    def _drag(self, screen_x: int, screen_y: int) -> tuple[str, float]:
+    def _drag(self, screen_x: int, screen_y: int) -> list[tuple[Widget, str, float]]:
+        """Resize the pane to the pointer; return every (widget, dimension, %) set."""
         pane = self._pane()
         area = self.parent.content_region
         if self.parent.styles.layout.name == "horizontal":
@@ -253,15 +258,34 @@ class Splitter(Widget):
         else:
             dimension, size, total = "height", screen_y - pane.region.y, area.height
         size = max(self.MIN_CELLS, min(size, total - self.MIN_CELLS - 1))
+        resized = [(pane, dimension, self._set_cells(pane, dimension, size, total))]
+        # the bar only moves the pane's far edge: a first child stacked on the
+        # same axis keeps its cells, the children after it absorb the change
+        if self._keep is not None:
+            first = pane.children[0]
+            gutter = getattr(pane.region, dimension) - getattr(pane.content_region, dimension)
+            inner = size - gutter
+            cells = max(self.MIN_CELLS, min(self._keep, inner - self.MIN_CELLS - 1))
+            resized.append((first, dimension, self._set_cells(first, dimension, cells, inner)))
+        return resized
+
+    @staticmethod
+    def _set_cells(widget: Widget, dimension: str, cells: int, total: int) -> float:
         # round up: a % rounded down can resolve to one cell less than dragged
-        percent = math.ceil(size * 10000 / max(total, 1)) / 100
-        setattr(pane.styles, dimension, f"{percent}%")
-        return dimension, percent
+        percent = math.ceil(cells * 10000 / max(total, 1)) / 100
+        setattr(widget.styles, dimension, f"{percent}%")
+        return percent
 
     def on_mouse_down(self, event: events.MouseDown) -> None:
         self.capture_mouse()
         self.add_class("-dragging")
         self._moved = False
+        pane = self._pane()
+        same_axis = pane.styles.layout.name == self.parent.styles.layout.name
+        self._keep = None
+        if same_axis and pane.children:
+            first = pane.children[0].region
+            self._keep = first.width if pane.styles.layout.name == "horizontal" else first.height
         event.stop()
 
     def on_mouse_move(self, event: events.MouseMove) -> None:
@@ -276,8 +300,8 @@ class Splitter(Widget):
         self.remove_class("-dragging")
         # a plain click (no move) must leave the size alone
         if self._moved:
-            dimension, percent = self._drag(event.screen_x, event.screen_y)
-            self.post_message(self.Resized(self._pane().id, dimension, percent))
+            for widget, dimension, percent in self._drag(event.screen_x, event.screen_y):
+                self.post_message(self.Resized(widget.id, dimension, percent))
         event.stop()
 
     def on_click(self, event: events.Click) -> None:
@@ -479,7 +503,7 @@ class ExportScreen(ModalScreen[tuple[str, str] | None]):
         self.dismiss(None)
 
 
-RESIZABLE_PANES = ("group", "projects-table", "sessions-table")
+RESIZABLE_PANES = ("group", "projects-table", "sub")
 
 
 def _load_layout(raw: object) -> dict[str, dict[str, dict[str, float]]]:
@@ -534,31 +558,31 @@ class PiSessionsApp(App):
         border-title-style: bold;
     }
 
-    /* #group = Projects + #sub(Sessions, Details); Conversation stays separate.
-       Wide terminal: #group forms the left column (P/S/D stacked),
-       Conversation takes the whole right half. */
+    /* #group = #sub(Projects, Sessions) + Details; Conversation stays separate.
+       Wide terminal: #group forms the left column (P/S/D stacked, same
+       40/24/36 split as before), Conversation takes the whole right half. */
     Screen.-wide #main { layout: horizontal; }
     Screen.-wide #group { layout: vertical; width: 50%; height: 100%; }
-    Screen.-wide #projects-table { height: 40%; width: 100%; }
-    Screen.-wide #sub { layout: vertical; height: 1fr; width: 100%; }
-    Screen.-wide #sessions-table { height: 40%; width: 100%; }
+    Screen.-wide #sub { layout: vertical; height: 64%; width: 100%; }
+    Screen.-wide #projects-table { height: 62.5%; width: 100%; }
+    Screen.-wide #sessions-table { height: 1fr; width: 100%; }
     Screen.-wide #info-scroll { height: 1fr; width: 100%; }
     Screen.-wide #conv-scroll { width: 1fr; height: 100%; }
     Screen.-wide #split-main { width: 1; height: 100%; }
     Screen.-wide #split-group, Screen.-wide #split-sub { height: 1; width: 100%; }
 
     /* Narrow terminal (half screen): #group forms the top half
-       (Projects on the left, Sessions above Details on the right),
+       (a Projects | Sessions row above a full-width Details),
        Conversation takes the full-width bottom half. */
     Screen.-narrow #main { layout: vertical; }
-    Screen.-narrow #group { layout: horizontal; height: 50%; width: 100%; }
+    Screen.-narrow #group { layout: vertical; height: 50%; width: 100%; }
+    Screen.-narrow #sub { layout: horizontal; height: 50%; width: 100%; }
     Screen.-narrow #projects-table { width: 40%; height: 100%; }
-    Screen.-narrow #sub { layout: vertical; width: 1fr; height: 100%; }
-    Screen.-narrow #sessions-table { height: 50%; width: 100%; }
+    Screen.-narrow #sessions-table { width: 1fr; height: 100%; }
     Screen.-narrow #info-scroll { height: 1fr; width: 100%; }
     Screen.-narrow #conv-scroll { width: 100%; height: 1fr; }
-    Screen.-narrow #split-group { width: 1; height: 100%; }
-    Screen.-narrow #split-main, Screen.-narrow #split-sub { height: 1; width: 100%; }
+    Screen.-narrow #split-sub { width: 1; height: 100%; }
+    Screen.-narrow #split-main, Screen.-narrow #split-group { height: 1; width: 100%; }
 
     /* Cursor bar stays neutral so per-cell colors (live dot, eye) survive on
        the highlighted row — with an accent bar, a green eye on green would
@@ -649,21 +673,21 @@ class PiSessionsApp(App):
         yield Header()
         with Container(id="main"):
             with Container(id="group"):
-                yield DataTable(
-                    id="projects-table",
-                    cursor_type="row",
-                    zebra_stripes=True,
-                )
-                yield Splitter(id="split-group")
                 with Container(id="sub"):
+                    yield DataTable(
+                        id="projects-table",
+                        cursor_type="row",
+                        zebra_stripes=True,
+                    )
+                    yield Splitter(id="split-sub")
                     yield DataTable(
                         id="sessions-table",
                         cursor_type="row",
                         zebra_stripes=True,
                     )
-                    yield Splitter(id="split-sub")
-                    with VerticalScroll(id="info-scroll"):
-                        yield Static("", id="preview-content", markup=True)
+                yield Splitter(id="split-group")
+                with VerticalScroll(id="info-scroll"):
+                    yield Static("", id="preview-content", markup=True)
             yield Splitter(id="split-main")
             with VerticalScroll(id="conv-scroll"):
                 yield Static("", id="conversation-content", markup=False)
