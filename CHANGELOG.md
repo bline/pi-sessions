@@ -15,6 +15,8 @@ All notable changes to this project are documented here.
 - A split bar now moves only the two panes beside it: in the narrow layout,
   the Details/Conversation bar leaves the Projects | Sessions row alone, and
   in the wide layout the Sessions/Details bar leaves Projects alone.
+- Running the test suite no longer overwrites the saved theme and layout in
+  `~/.config/pi-sessions/settings.json`.
 
 ## [0.1.0] — 2026-11-04
 

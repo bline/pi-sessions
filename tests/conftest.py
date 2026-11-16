@@ -90,6 +90,12 @@ def write_transcript(
     write_jsonl(path, objs)
 
 
+@pytest.fixture(autouse=True)
+def isolated_settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Theme/layout changes in tests must never touch the real ~/.config settings."""
+    monkeypatch.setattr("pi_sessions.core.settings.DEFAULT_SETTINGS_PATH", tmp_path / "settings.json")
+
+
 @pytest.fixture
 def fake_base(tmp_path: Path) -> Path:
     """A fake ~/.pi/agent/sessions with one project and one session."""
