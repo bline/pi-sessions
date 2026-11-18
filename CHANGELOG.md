@@ -14,6 +14,11 @@ All notable changes to this project are documented here.
   name is written into the session file, so pi shows it too. Empty input clears
   it. Live sessions are refused: rename those from pi.
 
+### Fixed
+- Long project names and session titles no longer push the other columns out
+  of a narrow pane: they are cut with `…` to fit the pane width and grow back
+  when it widens. The full name stays visible in Details.
+
 ## [0.2.0] — 2026-11-18
 
 ### Changed from ccsessions
