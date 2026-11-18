@@ -138,7 +138,7 @@ def _read_token_stats(
     return stats, end, ids
 
 
-def get_token_stats(jsonl_path: Path, cache: "TokenCache | None" = None) -> TokenStats:
+def get_token_stats(jsonl_path: Path, cache: TokenCache | None = None) -> TokenStats:
     """Like compute_token_stats, but skips the read when the cache is fresh,
     and reads only the new lines of a session file that grew (a live session)."""
     if cache is None:

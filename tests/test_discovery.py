@@ -4,11 +4,11 @@ import json
 import os
 import time
 
+from conftest import PROJECT_DIR, SID, session_file, write_transcript
+
 from pi_sessions.core.cache import TokenCache
 from pi_sessions.core.discovery import discover_projects
 from pi_sessions.core.manage import ARCHIVE_SUBDIR
-
-from conftest import PROJECT_DIR, SID, session_file, write_transcript
 
 
 def test_metadata_comes_from_the_session_file(fake_base):

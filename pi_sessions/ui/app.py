@@ -15,8 +15,8 @@ from rich.text import Text
 from rich.theme import Theme as RichTheme
 from textual import events, work
 from textual.app import App, ComposeResult, SystemCommand
-from textual.color import Color as TextualColor
 from textual.binding import Binding
+from textual.color import Color as TextualColor
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.errors import NoWidget
 from textual.message import Message
@@ -46,7 +46,6 @@ from .. import __version__
 from ..core.settings import load_settings, save_settings
 from ..core.update import is_newer, latest_version, upgrade_command
 from ..core.watch import LiveDoc, WatchError, gitignore_hint, has_live_doc, live_doc_path
-
 
 # explicit pygments style for fenced code blocks (empty = follow the app
 # theme); any name from `pygments.styles.get_all_styles()` works

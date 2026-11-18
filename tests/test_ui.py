@@ -4,11 +4,11 @@ import asyncio
 from pathlib import Path
 from unittest.mock import patch
 
-import pi_sessions.ui.app as appmod
-from pi_sessions.core.models import Project, Session
-from pi_sessions.core import settings as settings_mod
 from textual.widgets import Static
 
+import pi_sessions.ui.app as appmod
+from pi_sessions.core import settings as settings_mod
+from pi_sessions.core.models import Project, Session
 from pi_sessions.ui.app import PiSessionsApp
 
 
@@ -177,7 +177,6 @@ def test_refresh_keeps_selection():
 async def _exercise_watch(tmp_path: Path) -> None:
     import json
 
-    from textual.widgets import DataTable
 
     projects = _fake_projects()
     session = projects[0].sessions[0]
