@@ -18,7 +18,9 @@ from textual.app import App, ComposeResult, SystemCommand
 from textual.binding import Binding
 from textual.color import Color as TextualColor
 from textual.containers import Container, Horizontal, VerticalScroll
+from textual.coordinate import Coordinate
 from textual.errors import NoWidget
+from textual.geometry import Region
 from textual.message import Message
 from textual.screen import ModalScreen, Screen
 from textual.widget import Widget
@@ -573,6 +575,35 @@ SORTABLE = {
 }
 
 
+class SortTable(FitTable):
+    """Hovering the header lights only a sortable (clickable) column label."""
+
+    # ponytail: overrides DataTable private hooks (Textual 8.x); recheck on upgrade
+    def _should_highlight(self, cursor: Coordinate, target_cell: Coordinate, type_of_cursor):
+        if target_cell.row != -1:
+            return super()._should_highlight(cursor, target_cell, type_of_cursor)
+        # the row cursor never sits on the header, so only the hover gets here
+        if cursor != target_cell or not 0 <= target_cell.column < len(self.ordered_columns):
+            return False
+        key = self.ordered_columns[target_cell.column].key.value
+        return key in SORTABLE.get(self.id or "", {})
+
+    def _refresh_header(self) -> None:
+        # refresh_coordinate() ignores the header row
+        if self.show_header:
+            self.refresh(Region(0, 0, self.size.width, self.header_height))
+
+    def watch_hover_coordinate(self, old: Coordinate, value: Coordinate) -> None:
+        super().watch_hover_coordinate(old, value)
+        if -1 in (old.row, value.row):
+            self._refresh_header()
+
+    def _set_hover_cursor(self, active: bool) -> None:
+        super()._set_hover_cursor(active)
+        if self.hover_row == -1:
+            self._refresh_header()
+
+
 class PiSessionsApp(App):
     """Four panes (projects / sessions / details / conversation) + resume."""
 
@@ -654,12 +685,6 @@ class PiSessionsApp(App):
         text-style: bold underline;
     }
 
-    /* in row-cursor mode Textual lights the whole header row on hover */
-    DataTable > .datatable--header-hover {
-        background: $boost;
-        color: $secondary;
-    }
-
     #preview-content, #conversation-content {
         padding: 0 1;
         height: auto;
@@ -725,12 +750,12 @@ class PiSessionsApp(App):
         with Panes(id="main"):
             with Container(id="group"):
                 with Container(id="sub"):
-                    yield FitTable(
+                    yield SortTable(
                         id="projects-table",
                         cursor_type="row",
                         zebra_stripes=True,
                     )
-                    yield FitTable(
+                    yield SortTable(
                         id="sessions-table",
                         cursor_type="row",
                         zebra_stripes=True,

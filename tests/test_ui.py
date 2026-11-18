@@ -518,6 +518,14 @@ async def _exercise_sort() -> None:
                     DataTable.HeaderSelected(st, col.key, idx, col.label)
                 )
 
+            # header hover lights only the hovered label, and only a sortable one
+            from textual.coordinate import Coordinate
+
+            msgs, title = Coordinate(-1, st.get_column_index("msgs")), Coordinate(-1, 2)
+            assert st._should_highlight(msgs, msgs, "row")
+            assert not st._should_highlight(title, title, "row")
+            assert not st._should_highlight(msgs, Coordinate(-1, msgs.column + 1), "row")
+
             ids = lambda: [s.session_id for s in app._vsessions]  # noqa: E731
             assert ids() == ["s1", "s2"]
             click_msgs()
