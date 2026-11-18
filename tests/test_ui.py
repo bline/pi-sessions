@@ -345,7 +345,7 @@ def test_focused_pane_border_uses_accent():
     asyncio.run(_exercise_focused_pane_border())
 
 
-async def _exercise_drag_splitter(tmp_path: Path) -> None:
+async def _exercise_drag_border(tmp_path: Path) -> None:
     settings_path = tmp_path / "settings.json"
     with (
         patch.object(appmod, "discover_projects", lambda **_kw: _fake_projects()),
@@ -360,10 +360,13 @@ async def _exercise_drag_splitter(tmp_path: Path) -> None:
             group = app.query_one("#group")
             assert group.region.width == 80
 
-            # wide: dragging the main bar to column 50 narrows the left column
-            await pilot.mouse_down("#split-main")
-            await pilot.hover(None, offset=(50, 10))
-            await pilot.mouse_up(None, offset=(50, 10))
+            # the panes touch: no gap between the left column and Conversation
+            assert app.query_one("#conv-scroll").region.x == 80
+
+            # wide: dragging the left column's right border to column 49 narrows it
+            await pilot.mouse_down(None, offset=(79, 10))
+            await pilot.hover(None, offset=(49, 10))
+            await pilot.mouse_up(None, offset=(49, 10))
             await pilot.pause()
             assert group.region.width == 50
             saved = appmod.load_settings()["layout"]
@@ -380,7 +383,8 @@ async def _exercise_drag_splitter(tmp_path: Path) -> None:
             assert group.region.width == 50
 
             # double-click puts the default 50% back and forgets the drag
-            await pilot.double_click("#split-main")
+            # (on Conversation's left border: either side of the seam works)
+            await pilot.double_click(None, offset=(50, 10))
             await pilot.pause()
             assert group.region.width == 80
             assert appmod.load_settings()["layout"]["wide"] == {}
@@ -388,24 +392,37 @@ async def _exercise_drag_splitter(tmp_path: Path) -> None:
             # a click without moving must not shift the pane by a rounding cell
             sessions = app.query_one("#sessions-table")
             before = sessions.region.height
-            await pilot.click("#split-sub")
+            seam = (10, sessions.region.y)  # Sessions' top border, under Projects
+            await pilot.click(None, offset=seam)
             await pilot.pause()
             assert sessions.region.height == before
 
             # drag, then two double-clicks in a row: each one resets
-            await pilot.mouse_down("#split-sub")
+            await pilot.mouse_down(None, offset=seam)
             await pilot.hover(None, offset=(10, 30))
             await pilot.mouse_up(None, offset=(10, 30))
             await pilot.pause()
             assert sessions.region.height != before
+            seam = (10, sessions.region.y)  # the border moved with the drag
             for _ in range(2):
-                await pilot.double_click("#split-sub")
+                await pilot.double_click(None, offset=seam)
                 await pilot.pause()
                 assert sessions.region.height == before
 
+            # Sessions' bottom border resizes #sub; Projects above keeps its rows
+            projects = app.query_one("#projects-table")
+            rows = projects.region.height
+            seam = (10, sessions.region.bottom - 1)
+            await pilot.mouse_down(None, offset=seam)
+            await pilot.hover(None, offset=(10, seam[1] + 4))
+            await pilot.mouse_up(None, offset=(10, seam[1] + 4))
+            await pilot.pause()
+            assert projects.region.height == rows
+            assert sessions.region.height == before + 4
 
-def test_drag_splitter_resizes_and_remembers(tmp_path):
-    asyncio.run(_exercise_drag_splitter(tmp_path))
+
+def test_drag_border_resizes_and_remembers(tmp_path):
+    asyncio.run(_exercise_drag_border(tmp_path))
 
 
 def test_load_layout_ignores_malformed_entries():

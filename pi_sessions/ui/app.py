@@ -18,11 +18,13 @@ from textual.app import App, ComposeResult, SystemCommand
 from textual.color import Color as TextualColor
 from textual.binding import Binding
 from textual.containers import Container, Horizontal, VerticalScroll
+from textual.errors import NoWidget
 from textual.message import Message
 from textual.screen import ModalScreen, Screen
 from textual.widget import Widget
 from textual.widgets import Button, DataTable, Footer, Header, Input, Static
 from textual.widgets._footer import FooterKey
+from textual.worker import get_current_worker
 
 from ..core.aliases import ProjectAliases
 from ..core.cache import TokenCache
@@ -203,32 +205,15 @@ def _resume_request(session: Session) -> ResumeRequest:
     )
 
 
-class Splitter(Widget):
-    """Drag bar that resizes the pane just before it, as a % of the parent.
+class Panes(Container):
+    """#main: drag the border between two panes to resize the pane before it.
 
-    Double-click puts the pane back to its CSS default size.
-
-    Horizontal parent -> the bar is vertical and drags the pane's width;
-    vertical parent -> the bar is horizontal and drags its height.
+    No widget of its own between the panes: the borders already there are the
+    handles, so the panes keep touching. Double-click a border to put the pane
+    back to its CSS default size. Sizes are a % of the pane's parent.
     """
 
-    DEFAULT_CSS = """
-    /* hidden until used: the cell stays in the layout, only the line fades */
-    Splitter {
-        background: $surface;
-        color: $accent;
-        text-opacity: 0%;
-    }
-    Splitter:hover, Splitter.-dragging {
-        text-opacity: 100%;
-    }
-    """
-
-    # a mouse-down here would otherwise start a Screen text selection that
-    # follows the drag into the neighbouring panes
-    ALLOW_SELECT = False
-
-    # smallest pane, in cells on either side of the bar (border + one line)
+    # smallest pane, in cells on either side of the border (border + one line)
     MIN_CELLS = 3
 
     class Resized(Message):
@@ -239,33 +224,49 @@ class Splitter(Widget):
             self.dimension = dimension
             self.percent = percent
 
-    def render(self) -> str:
-        # the axis flips with the wide/narrow layout
-        if self.parent.styles.layout.name == "horizontal":
-            return "\n".join("│" * self.size.height)
-        return "─" * self.size.width
+    _grab: tuple[Widget, str] | None = None
+    _keep: int | None = None
+    _moved = False
 
-    def _pane(self) -> Widget:
-        siblings = self.parent.children
-        return siblings[siblings.index(self) - 1]
+    def _seam_at(self, x: int, y: int) -> tuple[Widget, str] | None:
+        """The pane the border under (x, y) resizes, and along which dimension."""
+        try:
+            widget, _ = self.screen.get_widget_at(x, y)
+        except NoWidget:
+            return None
+        while widget is not self and widget.parent is not None:
+            siblings = widget.parent.children
+            i = siblings.index(widget)
+            r = widget.region
+            if widget.parent.styles.layout.name == "horizontal":
+                dimension, pos, first, last = "width", x, r.x, r.right - 1
+            else:
+                dimension, pos, first, last = "height", y, r.y, r.bottom - 1
+            # either side of the seam: this pane's far border or the next one's near border
+            if pos == last and i + 1 < len(siblings) and widget.id in RESIZABLE_PANES:
+                return widget, dimension
+            if pos == first and i > 0 and siblings[i - 1].id in RESIZABLE_PANES:
+                return siblings[i - 1], dimension
+            widget = widget.parent
+        return None
 
     def _drag(self, screen_x: int, screen_y: int) -> list[tuple[Widget, str, float]]:
         """Resize the pane to the pointer; return every (widget, dimension, %) set."""
-        pane = self._pane()
-        area = self.parent.content_region
-        if self.parent.styles.layout.name == "horizontal":
-            dimension, size, total = "width", screen_x - pane.region.x, area.width
+        pane, dimension = self._grab
+        area = pane.parent.content_region
+        if dimension == "width":
+            size, total = screen_x - pane.region.x + 1, area.width
         else:
-            dimension, size, total = "height", screen_y - pane.region.y, area.height
-        size = max(self.MIN_CELLS, min(size, total - self.MIN_CELLS - 1))
+            size, total = screen_y - pane.region.y + 1, area.height
+        size = max(self.MIN_CELLS, min(size, total - self.MIN_CELLS))
         resized = [(pane, dimension, self._set_cells(pane, dimension, size, total))]
-        # the bar only moves the pane's far edge: a first child stacked on the
+        # the border only moves the pane's far edge: a first child stacked on the
         # same axis keeps its cells, the children after it absorb the change
         if self._keep is not None:
             first = pane.children[0]
             gutter = getattr(pane.region, dimension) - getattr(pane.content_region, dimension)
             inner = size - gutter
-            cells = max(self.MIN_CELLS, min(self._keep, inner - self.MIN_CELLS - 1))
+            cells = max(self.MIN_CELLS, min(self._keep, inner - self.MIN_CELLS))
             resized.append((first, dimension, self._set_cells(first, dimension, cells, inner)))
         return resized
 
@@ -277,41 +278,46 @@ class Splitter(Widget):
         return percent
 
     def on_mouse_down(self, event: events.MouseDown) -> None:
+        self._grab = self._seam_at(event.screen_x, event.screen_y)
+        if self._grab is None:
+            return
         self.capture_mouse()
-        self.add_class("-dragging")
+        # the press landed in a pane: drop the text selection the screen started
+        self.screen.clear_selection()
         self._moved = False
-        pane = self._pane()
-        same_axis = pane.styles.layout.name == self.parent.styles.layout.name
+        pane = self._grab[0]
         self._keep = None
-        if same_axis and pane.children:
+        if pane.styles.layout.name == pane.parent.styles.layout.name and pane.children:
             first = pane.children[0].region
             self._keep = first.width if pane.styles.layout.name == "horizontal" else first.height
         event.stop()
 
     def on_mouse_move(self, event: events.MouseMove) -> None:
-        if self.has_class("-dragging"):
+        if self._grab is not None:
             self._moved = True
             self._drag(event.screen_x, event.screen_y)
+            event.stop()
 
     def on_mouse_up(self, event: events.MouseUp) -> None:
-        if not self.has_class("-dragging"):
+        if self._grab is None:
             return
         self.release_mouse()
-        self.remove_class("-dragging")
         # a plain click (no move) must leave the size alone
         if self._moved:
             for widget, dimension, percent in self._drag(event.screen_x, event.screen_y):
                 self.post_message(self.Resized(widget.id, dimension, percent))
+        self._grab = None
         event.stop()
 
     def on_click(self, event: events.Click) -> None:
         # quick repeated double-clicks keep counting up (3, 4…), all reset
-        if event.chain >= 2:
-            pane = self._pane()
+        seam = self._seam_at(event.screen_x, event.screen_y)
+        if event.chain >= 2 and seam is not None:
+            pane = seam[0]
             pane.styles.width = None
             pane.styles.height = None
             self.post_message(self.Resized(pane.id, "", None))
-        event.stop()
+            event.stop()
 
 
 class ConfirmScreen(ModalScreen[bool]):
@@ -568,8 +574,6 @@ class PiSessionsApp(App):
     Screen.-wide #sessions-table { height: 1fr; width: 100%; }
     Screen.-wide #info-scroll { height: 1fr; width: 100%; }
     Screen.-wide #conv-scroll { width: 1fr; height: 100%; }
-    Screen.-wide #split-main { width: 1; height: 100%; }
-    Screen.-wide #split-group, Screen.-wide #split-sub { height: 1; width: 100%; }
 
     /* Narrow terminal (half screen): #group forms the top half
        (a Projects | Sessions row above a full-width Details),
@@ -581,8 +585,6 @@ class PiSessionsApp(App):
     Screen.-narrow #sessions-table { width: 1fr; height: 100%; }
     Screen.-narrow #info-scroll { height: 1fr; width: 100%; }
     Screen.-narrow #conv-scroll { width: 100%; height: 1fr; }
-    Screen.-narrow #split-sub { width: 1; height: 100%; }
-    Screen.-narrow #split-main, Screen.-narrow #split-group { height: 1; width: 100%; }
 
     /* Cursor bar stays neutral so per-cell colors (live dot, eye) survive on
        the highlighted row — with an accent bar, a green eye on green would
@@ -664,14 +666,14 @@ class PiSessionsApp(App):
         # snapshots of the currently displayed (filtered) rows
         self._vprojects: list[Project] = []
         self._vsessions: list[Session] = []
-        # pane sizes dragged with a Splitter, per layout mode:
+        # pane sizes dragged by their borders, per layout mode:
         # {"wide": {"group": {"width": 40.0}}, "narrow": {...}}
         self._layout = _load_layout(load_settings().get("layout"))
         self._mode = ""
 
     def compose(self) -> ComposeResult:
         yield Header()
-        with Container(id="main"):
+        with Panes(id="main"):
             with Container(id="group"):
                 with Container(id="sub"):
                     yield DataTable(
@@ -679,16 +681,13 @@ class PiSessionsApp(App):
                         cursor_type="row",
                         zebra_stripes=True,
                     )
-                    yield Splitter(id="split-sub")
                     yield DataTable(
                         id="sessions-table",
                         cursor_type="row",
                         zebra_stripes=True,
                     )
-                yield Splitter(id="split-group")
                 with VerticalScroll(id="info-scroll"):
                     yield Static("", id="preview-content", markup=True)
-            yield Splitter(id="split-main")
             with VerticalScroll(id="conv-scroll"):
                 yield Static("", id="conversation-content", markup=False)
         yield FilterInput(id="filter-input")
@@ -715,7 +714,7 @@ class PiSessionsApp(App):
             for dimension, percent in self._layout[self._mode].get(pane_id, {}).items():
                 setattr(pane.styles, dimension, f"{percent}%")
 
-    def on_splitter_resized(self, event: Splitter.Resized) -> None:
+    def on_panes_resized(self, event: Panes.Resized) -> None:
         if event.percent is None:
             self._layout[self._mode].pop(event.pane_id, None)
         else:
@@ -819,6 +818,9 @@ class PiSessionsApp(App):
             return
         if isinstance(self.focused, Input):  # typing in the filter bar
             return
+        # a thread cannot be stopped, so `exclusive` alone would stack slow scans
+        if any(w.group == "scan" and w.is_running for w in self.workers):
+            return
         self._scan()
 
     @work(thread=True, exclusive=True, group="scan")
@@ -827,6 +829,10 @@ class PiSessionsApp(App):
         started = time.monotonic()
         seen: set[str] = set()
         projects = discover_projects(cache=self._cache, seen_files=seen)
+        # superseded by a newer scan: applying this one could undo a fresher result,
+        # and saving would race the newer scan on the cache's .tmp file
+        if get_current_worker().is_cancelled:
+            return
         self._aliases.apply(projects)
         self._cache.prune(seen)
         self._cache.save()
@@ -1425,10 +1431,7 @@ class PiSessionsApp(App):
                 msg = f"Alias removed — default name “{p.default_name}” restored"
             self._aliases.save()
             p.alias = alias
-            ptable = self.query_one("#projects-table", DataTable)
-            row = ptable.cursor_row
-            self._refresh_projects_table()
-            ptable.move_cursor(row=row)
+            self._refresh_projects_table()  # keeps the cursor on the same project
             self._set_status(msg)
 
         self.push_screen(RenameScreen(p.default_name, p.alias), on_rename)
