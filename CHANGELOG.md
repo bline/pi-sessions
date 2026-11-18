@@ -13,11 +13,17 @@ All notable changes to this project are documented here.
 - `n` on the Sessions pane names the session, the way pi's `/name` does: the
   name is written into the session file, so pi shows it too. Empty input clears
   it. Live sessions are refused: rename those from pi.
+- Click a numeric or date column header (Msgs, Tokens, Modified; Sessions,
+  Tokens on Projects) to sort: descending ▼, then ascending ▲, then back to
+  the default order. Hovering the header highlights only those clickable
+  labels, instead of the whole header row.
 
 ### Fixed
 - Long project names and session titles no longer push the other columns out
   of a narrow pane: they are cut with `…` to fit the pane width and grow back
   when it widens. The full name stays visible in Details.
+- Auto-refresh no longer resets the horizontal scroll of the Projects and
+  Sessions tables.
 
 ## [0.2.0] — 2026-11-18
 

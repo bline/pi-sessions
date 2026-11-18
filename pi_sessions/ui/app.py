@@ -18,7 +18,9 @@ from textual.app import App, ComposeResult, SystemCommand
 from textual.binding import Binding
 from textual.color import Color as TextualColor
 from textual.containers import Container, Horizontal, VerticalScroll
+from textual.coordinate import Coordinate
 from textual.errors import NoWidget
+from textual.geometry import Region
 from textual.message import Message
 from textual.screen import ModalScreen, Screen
 from textual.widget import Widget
@@ -559,6 +561,49 @@ class FitTable(DataTable):
         self._require_update_dimensions = True
 
 
+# table id -> column key -> (label, sort key); other columns are not sortable
+SORTABLE = {
+    "projects-table": {
+        "sessions": ("Sessions", lambda p: sum(not s.is_archived for s in p.sessions)),
+        "tokens": ("Tokens", lambda p: p.total_tokens.total),
+    },
+    "sessions-table": {
+        "msgs": ("Msgs", lambda s: s.message_count),
+        "tokens": ("Tokens", lambda s: s.tokens.total),
+        "modified": ("Modified", lambda s: s.modified or datetime.min),
+    },
+}
+
+
+class SortTable(FitTable):
+    """Hovering the header lights only a sortable (clickable) column label."""
+
+    # ponytail: overrides DataTable private hooks (Textual 8.x); recheck on upgrade
+    def _should_highlight(self, cursor: Coordinate, target_cell: Coordinate, type_of_cursor):
+        if target_cell.row != -1:
+            return super()._should_highlight(cursor, target_cell, type_of_cursor)
+        # the row cursor never sits on the header, so only the hover gets here
+        if cursor != target_cell or not 0 <= target_cell.column < len(self.ordered_columns):
+            return False
+        key = self.ordered_columns[target_cell.column].key.value
+        return key in SORTABLE.get(self.id or "", {})
+
+    def _refresh_header(self) -> None:
+        # refresh_coordinate() ignores the header row
+        if self.show_header:
+            self.refresh(Region(0, 0, self.size.width, self.header_height))
+
+    def watch_hover_coordinate(self, old: Coordinate, value: Coordinate) -> None:
+        super().watch_hover_coordinate(old, value)
+        if -1 in (old.row, value.row):
+            self._refresh_header()
+
+    def _set_hover_cursor(self, active: bool) -> None:
+        super()._set_hover_cursor(active)
+        if self.hover_row == -1:
+            self._refresh_header()
+
+
 class PiSessionsApp(App):
     """Four panes (projects / sessions / details / conversation) + resume."""
 
@@ -693,6 +738,8 @@ class PiSessionsApp(App):
         # snapshots of the currently displayed (filtered) rows
         self._vprojects: list[Project] = []
         self._vsessions: list[Session] = []
+        # table id -> (column key, descending); absent = discovery order
+        self._sort: dict[str, tuple[str, bool]] = {}
         # pane sizes dragged by their borders, per layout mode:
         # {"wide": {"group": {"width": 40.0}}, "narrow": {...}}
         self._layout = _load_layout(load_settings().get("layout"))
@@ -703,12 +750,12 @@ class PiSessionsApp(App):
         with Panes(id="main"):
             with Container(id="group"):
                 with Container(id="sub"):
-                    yield FitTable(
+                    yield SortTable(
                         id="projects-table",
                         cursor_type="row",
                         zebra_stripes=True,
                     )
-                    yield FitTable(
+                    yield SortTable(
                         id="sessions-table",
                         cursor_type="row",
                         zebra_stripes=True,
@@ -780,12 +827,14 @@ class PiSessionsApp(App):
         ptable = self.query_one("#projects-table", DataTable)
         ptable.add_column(" ")
         ptable.add_column("Project", key="fit")
-        ptable.add_columns("Sessions", "Tokens")
+        for key, (label, _) in SORTABLE["projects-table"].items():
+            ptable.add_column(label, key=key)
         ptable.border_title = "Projects"
         stable = self.query_one("#sessions-table", DataTable)
         stable.add_columns(" ", "  ")
         stable.add_column("Title", key="fit")
-        stable.add_columns("Msgs", "Tokens", "Modified")
+        for key, (label, _) in SORTABLE["sessions-table"].items():
+            stable.add_column(label, key=key)
         stable.border_title = "Sessions"
         self.query_one("#info-scroll").border_title = "Details"
         self.query_one("#conv-scroll").border_title = "Conversation"
@@ -928,7 +977,17 @@ class PiSessionsApp(App):
             "muted": self._muted_hex() or "bright_black",
         }
 
+    def _sorted(self, table_id: str, items: list) -> list:
+        sort = self._sort.get(table_id)
+        if sort is None:
+            return items
+        column, descending = sort
+        return sorted(items, key=SORTABLE[table_id][column][1], reverse=descending)
+
     def _visible_projects(self) -> list[Project]:
+        return self._sorted("projects-table", self._filtered_projects())
+
+    def _filtered_projects(self) -> list[Project]:
         q = self._project_filter.lower()
         if not q:
             return self.projects
@@ -941,6 +1000,9 @@ class PiSessionsApp(App):
         ]
 
     def _visible_sessions_of(self, project: Project) -> list[Session]:
+        return self._sorted("sessions-table", self._filtered_sessions_of(project))
+
+    def _filtered_sessions_of(self, project: Project) -> list[Session]:
         q = self._session_filter.lower()
         if not q:
             return project.sessions
@@ -972,7 +1034,7 @@ class PiSessionsApp(App):
             if 0 <= table.cursor_row < len(self._vprojects)
             else None
         )
-        prev_row, scroll_y = table.cursor_row, table.scroll_y
+        prev_row, scroll_x, scroll_y = table.cursor_row, table.scroll_x, table.scroll_y
         table.clear()
         self._vprojects = self._visible_projects()
         for p in self._vprojects:
@@ -1005,7 +1067,7 @@ class PiSessionsApp(App):
                         break
             table.move_cursor(row=row)
             if self._vprojects[row].encoded_dir == prev_dir:
-                self._keep_scroll(table, scroll_y, moved=row != prev_row)
+                self._keep_scroll(table, scroll_x, scroll_y, moved=row != prev_row)
             self._show_sessions_for(row)
         else:
             self._update_sessions_table([])
@@ -1050,7 +1112,7 @@ class PiSessionsApp(App):
             if 0 <= table.cursor_row < len(self._vsessions)
             else None
         )
-        prev_row, scroll_y = table.cursor_row, table.scroll_y
+        prev_row, scroll_x, scroll_y = table.cursor_row, table.scroll_x, table.scroll_y
         table.clear()
         self._vsessions = sessions
         for s in sessions:
@@ -1081,21 +1143,23 @@ class PiSessionsApp(App):
             for row, s in enumerate(sessions):
                 if s.session_id == prev_sid:
                     table.move_cursor(row=row)
-                    self._keep_scroll(table, scroll_y, moved=row != prev_row)
+                    self._keep_scroll(table, scroll_x, scroll_y, moved=row != prev_row)
                     break
 
-    def _keep_scroll(self, table: DataTable, scroll_y: float, moved: bool) -> None:
+    def _keep_scroll(
+        self, table: DataTable, scroll_x: float, scroll_y: float, moved: bool
+    ) -> None:
         """clear() snaps a table back to the top: put the view back where the
         user left it, so a rebuild (auto-refresh) never scrolls the list."""
 
         def restore() -> None:
-            table.scroll_to(y=scroll_y, animate=False, immediate=True)
+            table.scroll_to(x=scroll_x, y=scroll_y, animate=False, immediate=True)
             if moved:  # the selection was re-sorted: bring it into view
                 table.move_cursor(row=table.cursor_row)
 
         # now, so no frame paints at the top, and again once Textual has run its
         # queued scroll-to-cursor
-        table.scroll_to(y=scroll_y, animate=False, immediate=True)
+        table.scroll_to(x=scroll_x, y=scroll_y, animate=False, immediate=True)
         table.call_after_refresh(restore)
 
     def _update_preview(self, session: Session | None, force: bool = False) -> None:
@@ -1277,6 +1341,32 @@ class PiSessionsApp(App):
             self.query_one("#status", Static).update(msg)
         except Exception:
             pass
+
+    def on_data_table_header_selected(self, event: DataTable.HeaderSelected) -> None:
+        """Click a numeric/date header: descending, then ascending, then unsorted."""
+        table = event.data_table
+        sortable = SORTABLE.get(table.id or "", {})
+        column = event.column_key.value
+        if column not in sortable:
+            return
+        current = self._sort.get(table.id)
+        if current is None or current[0] != column:
+            self._sort[table.id] = (column, True)
+        elif current[1]:
+            self._sort[table.id] = (column, False)
+        else:
+            del self._sort[table.id]
+        sort = self._sort.get(table.id)
+        for key, (label, _) in sortable.items():
+            arrow = "" if sort is None or sort[0] != key else (" ▼" if sort[1] else " ▲")
+            col = table.columns[key]
+            col.label = Text(label + arrow)
+            # a label only sizes its column when added: make room for the arrow
+            col.content_width = max(col.content_width, col.label.cell_len)
+        if table.id == "projects-table":
+            self._refresh_projects_table()
+        else:
+            self._show_sessions_for(self.query_one("#projects-table", DataTable).cursor_row)
 
     def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
         # read the table's live cursor instead of the event payload: clear() and
