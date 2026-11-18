@@ -26,6 +26,7 @@ from textual.widgets import Button, DataTable, Footer, Header, Input, Static
 from textual.widgets._footer import FooterKey
 from textual.worker import get_current_worker
 
+from .. import __version__
 from ..core.aliases import ProjectAliases
 from ..core.cache import TokenCache
 from ..core.discovery import discover_projects
@@ -42,7 +43,6 @@ from ..core.manage import (
 from ..core.models import Project, Session, TokenStats
 from ..core.parser import read_conversation_tail
 from ..core.resume import ResumeRequest, build_resume_command
-from .. import __version__
 from ..core.settings import load_settings, save_settings
 from ..core.update import is_newer, latest_version, upgrade_command
 from ..core.watch import LiveDoc, WatchError, gitignore_hint, has_live_doc, live_doc_path
