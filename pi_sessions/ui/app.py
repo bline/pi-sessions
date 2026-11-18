@@ -36,6 +36,7 @@ from ..core.manage import (
     archive_session,
     delete_project,
     delete_session,
+    rename_session,
     restore_project,
     restore_session,
 )
@@ -392,7 +393,7 @@ class FilterInput(Input):
 
 
 class RenameScreen(ModalScreen[str | None]):
-    """Prompt for a project alias. Empty input restores the default name."""
+    """Prompt for a name. Empty input restores the default name."""
 
     DEFAULT_CSS = """
     RenameScreen {
@@ -415,14 +416,15 @@ class RenameScreen(ModalScreen[str | None]):
 
     BINDINGS = [Binding("escape", "cancel", "Cancel")]
 
-    def __init__(self, default_name: str, current_alias: str) -> None:
+    def __init__(self, default_name: str, current_alias: str, label: str = "Alias") -> None:
         super().__init__()
+        self._label = label
         self._default_name = default_name
         self._current_alias = current_alias
 
     def compose(self) -> ComposeResult:
         with Container(id="rename-dialog"):
-            yield Static(f"Alias for “{self._default_name}”", id="rename-title", markup=False)
+            yield Static(f"{self._label} for “{self._default_name}”", id="rename-title", markup=False)
             yield Static(
                 "Enter = save · Escape = cancel · empty = restore default name",
                 id="rename-hint",
@@ -1415,6 +1417,9 @@ class PiSessionsApp(App):
         self.push_screen(ExportScreen(s.display_title[:50]), on_export)
 
     def action_rename(self) -> None:
+        if not self._focus_on_projects():
+            self._rename_session()
+            return
         p = self._current_project()
         if p is None:
             return
@@ -1435,6 +1440,32 @@ class PiSessionsApp(App):
             self._set_status(msg)
 
         self.push_screen(RenameScreen(p.default_name, p.alias), on_rename)
+
+    def _rename_session(self) -> None:
+        s = self._selected_session()
+        if s is None:
+            return
+        if s.is_live:
+            # pi would chain its next entry past ours, leaving it on a dead branch
+            self._set_status("Session is live — rename it from pi with /name")
+            self.bell()
+            return
+
+        def on_rename(result: str | None) -> None:
+            if result is None:
+                return
+            name = result.strip()
+            try:
+                rename_session(s, name)
+            except ManageError as e:
+                self._set_status(f"Rename failed: {e}")
+                self.bell()
+                return
+            self._set_status(f"Session renamed: {name}" if name else "Session name cleared")
+            self.action_refresh()
+
+        default = s.first_prompt[:60] or s.session_id
+        self.push_screen(RenameScreen(default, s.summary, "Name"), on_rename)
 
     def _target_is_archived(self) -> bool:
         """Is the item `a` would act on (project or session) archived?"""

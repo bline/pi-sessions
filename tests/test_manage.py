@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from unittest.mock import patch
 
 import pytest
@@ -12,6 +14,7 @@ from pi_sessions.core.manage import (
     archive_session,
     delete_project,
     delete_session,
+    rename_session,
     restore_session,
     sessions_root,
 )
@@ -97,3 +100,16 @@ def test_sessions_root_follows_pi_env_vars(monkeypatch, tmp_path):
     assert sessions_root() == tmp_path / "s"
     monkeypatch.setenv("PI_SESSIONS_ROOT", str(tmp_path / "mine"))
     assert sessions_root() == tmp_path / "mine"
+
+
+def test_rename_session_appends_chained_session_info(fake_base):
+    s = _session(fake_base)
+    mtime = s.jsonl_path.stat().st_mtime
+    rename_session(s, "my name")
+    last = json.loads(s.jsonl_path.read_text().splitlines()[-1])
+    assert last["type"] == "session_info" and last["parentId"] == "a1"
+    assert s.jsonl_path.stat().st_mtime == mtime
+    s = _session(fake_base)
+    assert s.summary == "my name" and s.branches <= 1
+    rename_session(s, "")
+    assert _session(fake_base).summary == ""

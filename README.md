@@ -55,7 +55,7 @@ pisessions
 | `c` | Copy the resume command to the clipboard |
 | `a` | Archive ↔ restore session · archive ↔ restore project |
 | `d` | Delete session / project (with confirmation) |
-| `n` | Rename project (set a display alias) |
+| `n` | Rename session (as pi's `/name`) · rename project (display alias) |
 | `e` | Export the session (Markdown or raw JSONL) |
 | `l` | Follow the session in a live Markdown document |
 | `/` | Filter the focused list (projects or sessions) |
