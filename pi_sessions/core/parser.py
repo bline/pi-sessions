@@ -65,13 +65,33 @@ def _text_of(content: object) -> str:
 
 def compute_token_stats(jsonl_path: Path) -> TokenStats:
     """One streaming pass: tokens, cost, counts and session metadata."""
-    stats = TokenStats()
-    ids: set[str] = set()
+    return _read_token_stats(jsonl_path)[0]
+
+
+def _read_token_stats(
+    jsonl_path: Path,
+    start: int = 0,
+    stats: TokenStats | None = None,
+    leaves: set[str] | None = None,
+) -> tuple[TokenStats, int, set[str]]:
+    """Add the entries from byte `start` on into `stats`.
+
+    Also returns the offset where reading should resume (a last line that
+    does not parse yet is still being written, so it is left for next time)
+    and the tree's leaf ids, which the next read needs to keep `branches` right.
+    """
+    stats = stats or TokenStats()
+    end = start
+    ids: set[str] = set(leaves or ())
     parents: set[str] = set()
     try:
-        with open(jsonl_path, encoding="utf-8", errors="replace") as f:
-            for line in f:
-                obj = _load(line)
+        with open(jsonl_path, "rb") as f:
+            f.seek(start)
+            for raw in f:
+                obj = _load(raw.decode("utf-8", errors="replace"))
+                if obj is None and raw.strip() and not raw.endswith(b"\n"):
+                    break  # still being written
+                end += len(raw)
                 if obj is None:
                     continue
                 typ = obj.get("type")
@@ -111,12 +131,16 @@ def compute_token_stats(jsonl_path: Path) -> TokenStats:
                             stats.model = f"{msg.get('provider') or '?'}/{msg['model']}"
     except OSError:
         pass
-    stats.branches = len(ids - parents)
-    return stats
+    # an entry is appended after its parent, so an old line never names a new one as
+    # parent: the old leaves plus the new ids, minus the new parents, are the leaves
+    ids -= parents
+    stats.branches = len(ids)
+    return stats, end, ids
 
 
 def get_token_stats(jsonl_path: Path, cache: "TokenCache | None" = None) -> TokenStats:
-    """Like compute_token_stats, but skips the read when the cache is fresh."""
+    """Like compute_token_stats, but skips the read when the cache is fresh,
+    and reads only the new lines of a session file that grew (a live session)."""
     if cache is None:
         return compute_token_stats(jsonl_path)
     try:
@@ -126,8 +150,14 @@ def get_token_stats(jsonl_path: Path, cache: "TokenCache | None" = None) -> Toke
     cached = cache.get(jsonl_path, stat)
     if cached is not None:
         return cached
-    stats = compute_token_stats(jsonl_path)
-    cache.put(jsonl_path, stats, stat)
+    prev = cache.get_partial(jsonl_path)
+    # ponytail: a bigger file is assumed appended to, as pi does; one rewritten
+    # to a larger size would be miscounted until its cache entry goes
+    if prev is not None and prev[1] < stat.st_size:
+        stats, end, leaves = _read_token_stats(jsonl_path, prev[1], prev[0], prev[2])
+    else:
+        stats, end, leaves = _read_token_stats(jsonl_path)
+    cache.put(jsonl_path, stats, stat, end, leaves)
     return stats
 
 
