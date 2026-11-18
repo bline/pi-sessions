@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import json
 from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
+from conftest import assistant, header, text, user, write_jsonl
 
 from pi_sessions.core.export import (
     MARKDOWN,
@@ -17,8 +17,6 @@ from pi_sessions.core.export import (
     resolve_destination,
 )
 from pi_sessions.core.models import Entry, Session, TokenStats
-
-from conftest import assistant, header, text, user, write_jsonl
 
 
 def _session(tmp_path: Path) -> Session:

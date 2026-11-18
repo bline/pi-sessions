@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+from conftest import SID, USAGE, assistant, header, text, user, write_jsonl, write_transcript
+
 from pi_sessions.core.parser import (
     compute_token_stats,
     iter_conversation,
     read_conversation_tail,
 )
-
-from conftest import SID, USAGE, assistant, header, text, user, write_jsonl, write_transcript
 
 
 def test_token_stats_and_metadata(tmp_path):

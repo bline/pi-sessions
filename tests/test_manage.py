@@ -5,6 +5,7 @@ import json
 from unittest.mock import patch
 
 import pytest
+from conftest import PROJECT_DIR
 
 import pi_sessions.core.manage as manage
 from pi_sessions.core.discovery import discover_projects
@@ -18,8 +19,6 @@ from pi_sessions.core.manage import (
     restore_session,
     sessions_root,
 )
-
-from conftest import PROJECT_DIR
 
 
 def _session(base):
