@@ -535,6 +535,30 @@ def _load_layout(raw: object) -> dict[str, dict[str, dict[str, float]]]:
     return layout
 
 
+class SessionsTable(DataTable):
+    """The Title column takes the width the other columns leave, elided."""
+
+    TITLE_MIN = 15
+
+    # ponytail: hooks DataTable's private sizing pass (Textual 8.x); recheck on upgrade
+    def _update_dimensions(self, new_rows: Iterable) -> None:
+        super()._update_dimensions(new_rows)  # measures the other columns first
+        title = self.columns.get("title")
+        if title is None:
+            return
+        others = sum(c.get_render_width(self) for k, c in self.columns.items() if k != "title")
+        # always reserve the vertical scrollbar: it may appear after this pass
+        room = self.size.width - self.styles.gutter.width - self.styles.scrollbar_size_vertical
+        width = max(self.TITLE_MIN, room - others - 2 * self.cell_padding)
+        if title.auto_width or title.width != width:
+            title.auto_width, title.width = False, width
+            self._clear_caches()
+            self._require_update_dimensions = True  # rerun once with the new width
+
+    def on_resize(self, _: events.Resize) -> None:
+        self._require_update_dimensions = True
+
+
 class PiSessionsApp(App):
     """Four panes (projects / sessions / details / conversation) + resume."""
 
@@ -684,7 +708,7 @@ class PiSessionsApp(App):
                         cursor_type="row",
                         zebra_stripes=True,
                     )
-                    yield DataTable(
+                    yield SessionsTable(
                         id="sessions-table",
                         cursor_type="row",
                         zebra_stripes=True,
@@ -757,7 +781,9 @@ class PiSessionsApp(App):
         ptable.add_columns(" ", "Project", "Sessions", "Tokens")
         ptable.border_title = "Projects"
         stable = self.query_one("#sessions-table", DataTable)
-        stable.add_columns(" ", "  ", "Title", "Msgs", "Tokens", "Modified")
+        stable.add_columns(" ", "  ")
+        stable.add_column("Title", key="title")
+        stable.add_columns("Msgs", "Tokens", "Modified")
         stable.border_title = "Sessions"
         self.query_one("#info-scroll").border_title = "Details"
         self.query_one("#conv-scroll").border_title = "Conversation"
@@ -1036,15 +1062,13 @@ class PiSessionsApp(App):
                 marker = Text(" ")
             inactive = s.is_archived
             desc_raw = s.display_title.replace("\n", " ").strip() or s.session_id
-            if len(desc_raw) > 80:
-                desc_raw = desc_raw[:77] + "..."
             if inactive:
                 desc_style = pal["muted"]
             elif s.is_live:
                 desc_style = f"bold {pal['text']}"
             else:
                 desc_style = pal["text"]
-            desc = Text(desc_raw, style=desc_style)
+            desc = Text(desc_raw, style=desc_style, no_wrap=True, overflow="ellipsis")
             count_style = pal["muted"] if inactive else pal["warning"]
             count = Text(str(s.message_count), style=count_style, justify="right")
             tok_style = pal["muted"] if inactive else pal["secondary"]
