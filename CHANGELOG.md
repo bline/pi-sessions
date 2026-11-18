@@ -2,6 +2,15 @@
 
 All notable changes to this project are documented here.
 
+## [Unreleased]
+
+### Added
+- The header shows the installed version. On launch, a background check asks
+  PyPI for the latest release; when it is newer, the header shows it with the
+  upgrade command. Disable with `"check_updates": false` in
+  `~/.config/pi-sessions/settings.json`.
+- `pisessions --version` prints the installed version.
+
 ## [0.2.0] — 2026-11-18
 
 ### Changed from ccsessions
