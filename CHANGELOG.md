@@ -22,6 +22,8 @@ All notable changes to this project are documented here.
 - Long project names and session titles no longer push the other columns out
   of a narrow pane: they are cut with `…` to fit the pane width and grow back
   when it widens. The full name stays visible in Details.
+- Auto-refresh no longer resets the horizontal scroll of the Projects and
+  Sessions tables.
 
 ## [0.2.0] — 2026-11-18
 
