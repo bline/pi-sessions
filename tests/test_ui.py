@@ -469,3 +469,30 @@ async def _exercise_reset_layout(tmp_path: Path) -> None:
 
 def test_reset_layout_command(tmp_path):
     asyncio.run(_exercise_reset_layout(tmp_path))
+
+
+async def _exercise_title_fits() -> None:
+    projects = _fake_projects()
+    projects[0].project_path = "/tmp/" + "y" * 200
+    projects[0].sessions[0].first_prompt = "x" * 200
+    app = PiSessionsApp()
+    with patch.object(appmod, "discover_projects", lambda **_kw: projects):
+        async with app.run_test(size=(120, 40)) as pilot:
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+            await pilot.pause()
+            tables = [app.query_one("#projects-table"), app.query_one("#sessions-table")]
+            narrow = []
+            for t in tables:
+                # long names are elided instead of scrolling the table sideways
+                assert t.virtual_size.width <= t.scrollable_content_region.width
+                narrow.append(t.columns["fit"].width)
+            await pilot.resize_terminal(200, 40)
+            await pilot.pause()
+            await pilot.pause()
+            for t, before in zip(tables, narrow, strict=True):
+                assert t.columns["fit"].width > before
+
+
+def test_title_column_fits_pane():
+    asyncio.run(_exercise_title_fits())
