@@ -10,6 +10,9 @@ All notable changes to this project are documented here.
   upgrade command. Disable with `"check_updates": false` in
   `~/.config/pi-sessions/settings.json`.
 - `pisessions --version` prints the installed version.
+- `n` on the Sessions pane names the session, the way pi's `/name` does: the
+  name is written into the session file, so pi shows it too. Empty input clears
+  it. Live sessions are refused: rename those from pi.
 
 ## [0.2.0] — 2026-11-18
 
