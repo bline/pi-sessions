@@ -559,6 +559,20 @@ class FitTable(DataTable):
         self._require_update_dimensions = True
 
 
+# table id -> column key -> (label, sort key); other columns are not sortable
+SORTABLE = {
+    "projects-table": {
+        "sessions": ("Sessions", lambda p: sum(not s.is_archived for s in p.sessions)),
+        "tokens": ("Tokens", lambda p: p.total_tokens.total),
+    },
+    "sessions-table": {
+        "msgs": ("Msgs", lambda s: s.message_count),
+        "tokens": ("Tokens", lambda s: s.tokens.total),
+        "modified": ("Modified", lambda s: s.modified or datetime.min),
+    },
+}
+
+
 class PiSessionsApp(App):
     """Four panes (projects / sessions / details / conversation) + resume."""
 
@@ -640,6 +654,12 @@ class PiSessionsApp(App):
         text-style: bold underline;
     }
 
+    /* in row-cursor mode Textual lights the whole header row on hover */
+    DataTable > .datatable--header-hover {
+        background: $boost;
+        color: $secondary;
+    }
+
     #preview-content, #conversation-content {
         padding: 0 1;
         height: auto;
@@ -693,6 +713,8 @@ class PiSessionsApp(App):
         # snapshots of the currently displayed (filtered) rows
         self._vprojects: list[Project] = []
         self._vsessions: list[Session] = []
+        # table id -> (column key, descending); absent = discovery order
+        self._sort: dict[str, tuple[str, bool]] = {}
         # pane sizes dragged by their borders, per layout mode:
         # {"wide": {"group": {"width": 40.0}}, "narrow": {...}}
         self._layout = _load_layout(load_settings().get("layout"))
@@ -780,12 +802,14 @@ class PiSessionsApp(App):
         ptable = self.query_one("#projects-table", DataTable)
         ptable.add_column(" ")
         ptable.add_column("Project", key="fit")
-        ptable.add_columns("Sessions", "Tokens")
+        for key, (label, _) in SORTABLE["projects-table"].items():
+            ptable.add_column(label, key=key)
         ptable.border_title = "Projects"
         stable = self.query_one("#sessions-table", DataTable)
         stable.add_columns(" ", "  ")
         stable.add_column("Title", key="fit")
-        stable.add_columns("Msgs", "Tokens", "Modified")
+        for key, (label, _) in SORTABLE["sessions-table"].items():
+            stable.add_column(label, key=key)
         stable.border_title = "Sessions"
         self.query_one("#info-scroll").border_title = "Details"
         self.query_one("#conv-scroll").border_title = "Conversation"
@@ -928,7 +952,17 @@ class PiSessionsApp(App):
             "muted": self._muted_hex() or "bright_black",
         }
 
+    def _sorted(self, table_id: str, items: list) -> list:
+        sort = self._sort.get(table_id)
+        if sort is None:
+            return items
+        column, descending = sort
+        return sorted(items, key=SORTABLE[table_id][column][1], reverse=descending)
+
     def _visible_projects(self) -> list[Project]:
+        return self._sorted("projects-table", self._filtered_projects())
+
+    def _filtered_projects(self) -> list[Project]:
         q = self._project_filter.lower()
         if not q:
             return self.projects
@@ -941,6 +975,9 @@ class PiSessionsApp(App):
         ]
 
     def _visible_sessions_of(self, project: Project) -> list[Session]:
+        return self._sorted("sessions-table", self._filtered_sessions_of(project))
+
+    def _filtered_sessions_of(self, project: Project) -> list[Session]:
         q = self._session_filter.lower()
         if not q:
             return project.sessions
@@ -1277,6 +1314,32 @@ class PiSessionsApp(App):
             self.query_one("#status", Static).update(msg)
         except Exception:
             pass
+
+    def on_data_table_header_selected(self, event: DataTable.HeaderSelected) -> None:
+        """Click a numeric/date header: descending, then ascending, then unsorted."""
+        table = event.data_table
+        sortable = SORTABLE.get(table.id or "", {})
+        column = event.column_key.value
+        if column not in sortable:
+            return
+        current = self._sort.get(table.id)
+        if current is None or current[0] != column:
+            self._sort[table.id] = (column, True)
+        elif current[1]:
+            self._sort[table.id] = (column, False)
+        else:
+            del self._sort[table.id]
+        sort = self._sort.get(table.id)
+        for key, (label, _) in sortable.items():
+            arrow = "" if sort is None or sort[0] != key else (" ▼" if sort[1] else " ▲")
+            col = table.columns[key]
+            col.label = Text(label + arrow)
+            # a label only sizes its column when added: make room for the arrow
+            col.content_width = max(col.content_width, col.label.cell_len)
+        if table.id == "projects-table":
+            self._refresh_projects_table()
+        else:
+            self._show_sessions_for(self.query_one("#projects-table", DataTable).cursor_row)
 
     def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
         # read the table's live cursor instead of the event payload: clear() and

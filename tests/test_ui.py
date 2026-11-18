@@ -496,3 +496,46 @@ async def _exercise_title_fits() -> None:
 
 def test_title_column_fits_pane():
     asyncio.run(_exercise_title_fits())
+
+
+async def _exercise_sort() -> None:
+    app = PiSessionsApp()
+    projects = _fake_projects()
+    for s, n in zip(projects[0].sessions, (3, 9), strict=True):
+        s.message_count = n
+    with patch.object(appmod, "discover_projects", lambda **_kw: projects):
+        async with app.run_test(size=(120, 40)) as pilot:
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+            from textual.widgets import DataTable
+
+            st = app.query_one("#sessions-table", DataTable)
+
+            def click_msgs() -> None:
+                col = st.columns["msgs"]
+                idx = st.get_column_index("msgs")
+                app.on_data_table_header_selected(
+                    DataTable.HeaderSelected(st, col.key, idx, col.label)
+                )
+
+            ids = lambda: [s.session_id for s in app._vsessions]  # noqa: E731
+            assert ids() == ["s1", "s2"]
+            click_msgs()
+            assert ids() == ["s2", "s1"] and str(st.columns["msgs"].label) == "Msgs ▼"
+            click_msgs()
+            assert ids() == ["s1", "s2"] and str(st.columns["msgs"].label) == "Msgs ▲"
+            click_msgs()
+            assert ids() == ["s1", "s2"] and str(st.columns["msgs"].label) == "Msgs"
+
+            # every sortable column, both tables, must have comparable keys
+            for table in (st, app.query_one("#projects-table", DataTable)):
+                for key in appmod.SORTABLE[table.id]:
+                    col = table.columns[key]
+                    for _ in range(3):
+                        app.on_data_table_header_selected(
+                            DataTable.HeaderSelected(table, col.key, 0, col.label)
+                        )
+
+
+def test_header_click_cycles_sort() -> None:
+    asyncio.run(_exercise_sort())
