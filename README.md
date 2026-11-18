@@ -119,7 +119,7 @@ python docs/screenshots.py   # regenerate the README screenshots from fake sessi
 
 ## Known limitations
 
-- **"Running" is a guess.** pi keeps no record of running sessions, so ● means *modified in the last `PI_SESSIONS_LIVE_SECONDS` seconds* (default 120). Sessions marked this way cannot be archived or deleted; an idle pi session past that delay can.
+- **"Running" is a guess.** pi keeps no record of running sessions and writes to the session file only when something happens, so ● means *modified in the last `PI_SESSIONS_LIVE_SECONDS` seconds* (default 120). Sessions marked this way cannot be archived, deleted or renamed. A session still open in pi but idle past that delay shows as stopped, and nothing stops you from archiving, deleting or renaming it: close it in pi first (renaming an open session leaves the name on a dead branch, so pi ignores it).
 
 ## Changelog
 
