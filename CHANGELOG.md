@@ -4,17 +4,26 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-11-18
+
 ### Changed from ccsessions
 - Narrow layout: Projects and Sessions now share the top row and Details takes
   the full width below them, instead of a Projects column beside Sessions
   stacked above Details. Default widths of Projects and Sessions are unchanged.
   A saved Sessions height from an earlier drag is ignored.
+- Panes are resized by dragging their borders: the split bars between them
+  are gone, so the panes touch. Double-click a border to reset it.
 
 ### Fixed
-- Dragging a split bar no longer selects the text of the panes it crosses.
-- A split bar now moves only the two panes beside it: in the narrow layout,
-  the Details/Conversation bar leaves the Projects | Sessions row alone, and
-  in the wide layout the Sessions/Details bar leaves Projects alone.
+- Dragging a pane border no longer selects the text of the panes it crosses.
+- A border now moves only the two panes beside it: in the narrow layout,
+  the Details/Conversation border leaves the Projects | Sessions row alone, and
+  in the wide layout the Sessions/Details border leaves Projects alone.
+- Slow rescans no longer pile up, and a superseded scan no longer overwrites
+  a newer one.
+- Renaming a project no longer moves the cursor back to its old row.
+- A live session's file is no longer read in full at every rescan: only the
+  lines added since the last one are.
 - Running the test suite no longer overwrites the saved theme and layout in
   `~/.config/pi-sessions/settings.json`.
 
