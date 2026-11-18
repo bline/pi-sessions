@@ -104,3 +104,9 @@ def fake_base(tmp_path: Path) -> Path:
     proj.mkdir(parents=True)
     write_transcript(session_file(proj))
     return base
+
+
+@pytest.fixture(autouse=True)
+def no_pypi(monkeypatch):
+    """UI tests never reach PyPI; a test opts in by patching it again."""
+    monkeypatch.setattr("pi_sessions.ui.app.latest_version", lambda: None)

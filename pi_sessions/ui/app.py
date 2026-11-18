@@ -42,7 +42,9 @@ from ..core.manage import (
 from ..core.models import Project, Session, TokenStats
 from ..core.parser import read_conversation_tail
 from ..core.resume import ResumeRequest, build_resume_command
+from .. import __version__
 from ..core.settings import load_settings, save_settings
+from ..core.update import is_newer, latest_version, upgrade_command
 from ..core.watch import LiveDoc, WatchError, gitignore_hint, has_live_doc, live_doc_path
 
 
@@ -742,7 +744,7 @@ class PiSessionsApp(App):
 
     def on_mount(self) -> None:
         self.title = "Pi Sessions"
-        self.sub_title = ""
+        self.sub_title = f"v{__version__}"  # replaced if a newer release exists
         # precedence: env var > theme saved from a previous run > default
         requested = APP_THEME_OVERRIDE or load_settings().get("theme") or "ansi-dark"
         try:
@@ -760,6 +762,8 @@ class PiSessionsApp(App):
         self.query_one("#conv-scroll").border_title = "Conversation"
         self.action_refresh()
         ptable.focus()
+        if load_settings().get("check_updates", True):
+            self._check_update()
         self.watch(self.screen, "focused", self._highlight_focused_pane)
         interval = _auto_refresh_seconds()
         if interval:
@@ -822,6 +826,14 @@ class PiSessionsApp(App):
         if any(w.group == "scan" and w.is_running for w in self.workers):
             return
         self._scan()
+
+    @work(thread=True, group="update")
+    def _check_update(self) -> None:
+        latest = latest_version()
+        if latest and is_newer(latest, __version__):
+            self.call_from_thread(
+                setattr, self, "sub_title", f"v{latest} available — {upgrade_command()}"
+            )
 
     @work(thread=True, exclusive=True, group="scan")
     def _scan(self) -> None:

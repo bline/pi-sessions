@@ -29,6 +29,10 @@ Based on a fork of [ccsessions](https://github.com/miskiewiczm/ccsessions) by Ma
   raw JSONL, never overwriting an existing file
 - **Live document** — `l` keeps `_session_<id>.md` in sync with a running
   session, so a live-reloading renderer can show it with LaTeX rendered
+- **Update check** — on launch, a newer PyPI release is shown in the header
+  with its upgrade command; nothing is installed for you. Disable with
+  `"check_updates": false` in `~/.config/pi-sessions/settings.json`;
+  `pisessions --version` prints the installed version
 - **Fast** — session metadata is cached per file (mtime + size), scanning runs
   off the UI thread, previews read only the tail of large files
 
