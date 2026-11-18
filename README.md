@@ -1,11 +1,15 @@
 # pi-sessions
 
-A fast terminal UI for browsing, previewing, resuming and managing
-[pi](https://github.com/earendil-works/pi) coding agent sessions.
+[![PyPI version](https://img.shields.io/pypi/v/pi-sessions-tui)](https://pypi.org/project/pi-sessions-tui/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![pi companion](https://img.shields.io/badge/pi-companion-8A2BE2)](https://pi.dev)
+[![python](https://img.shields.io/badge/python-%3E%3D3.10-3776AB)](https://www.python.org)
 
-Based on a fork of [ccsessions](https://github.com/miskiewiczm/ccsessions) 
-by Marek Miśkiewicz, which does the same for Claude Code. Changes from 
-ccsessions are listed in [CHANGELOG.md](CHANGELOG.md).
+A terminal UI to browse, preview, resume and manage your [pi](https://pi.dev) coding agent sessions: every project on your machine, every session, and the conversation, without opening pi.
+
+![pi-sessions in a wide terminal](docs/screenshot-wide.svg)
+
+Based on a fork of [ccsessions](https://github.com/miskiewiczm/ccsessions) by Marek Miśkiewicz, which does the same for Claude Code.
 
 ## Features
 
@@ -28,28 +32,16 @@ ccsessions are listed in [CHANGELOG.md](CHANGELOG.md).
 - **Fast** — session metadata is cached per file (mtime + size), scanning runs
   off the UI thread, previews read only the tail of large files
 
-## Requirements
-
-- Python ≥ 3.10
-- pi installed (`pi` on PATH — needed only for resuming)
-- macOS or Linux
-
-## Installation
+## Install
 
 ```bash
 pipx install pi-sessions-tui        # or: uv tool install pi-sessions-tui
+git clone https://github.com/psychobarge/pi-sessions && pip install -e pi-sessions
 ```
 
-Both install the `pisessions` command.
+Each installs the `pisessions` command. Needs Python ≥ 3.10 on macOS or Linux; `pi` on your PATH only for resuming.
 
-Or from a clone:
-
-```bash
-git clone https://github.com/psychobarge/pi-sessions
-pip install -e pi-sessions
-```
-
-## Usage
+## Use
 
 ```bash
 pisessions
@@ -74,11 +66,11 @@ pisessions
 `a` and `d` act on the **session** when the Sessions pane is focused and on
 the whole **project** when the Projects pane is focused.
 
-pi keeps no record of running sessions, so ● means *modified in the last
-`PI_SESSIONS_LIVE_SECONDS` seconds* (default 120). Sessions marked this way
-cannot be archived or deleted.
+On a narrow terminal (half a screen) the panes stack instead:
 
-## Configuration
+![pi-sessions in a narrow terminal](docs/screenshot-narrow.svg)
+
+## Settings
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
@@ -113,13 +105,30 @@ subdirectory, which pi does not list. Archiving a project moves its directory
 to `sessions-archive/` next to the sessions root. Everything happens locally;
 no network requests.
 
-## Development
+## Develop
 
 ```bash
 pip install -e . --group dev
 pytest
+python docs/screenshots.py   # regenerate the README screenshots from fake sessions
 ```
+
+## Known limitations
+
+- **"Running" is a guess.** pi keeps no record of running sessions, so ● means *modified in the last `PI_SESSIONS_LIVE_SECONDS` seconds* (default 120). Sessions marked this way cannot be archived or deleted; an idle pi session past that delay can.
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for version history and the changes from ccsessions.
+
+## My pi extensions
+
+| Extension | What it does | Install |
+|---|---|---|
+| [pi-spec-mode](https://github.com/psychobarge/pi-spec-mode) | Writes feature specs with the agent and keeps them true to the code | `pi install npm:pi-spec-mode` |
+| [pi-deepseek-peak](https://github.com/psychobarge/pi-deepseek-peak) | Shows DeepSeek peak-hour status and corrects session prices | `pi install npm:pi-deepseek-peak` |
+| [pi-deepseek-vision](https://github.com/psychobarge/pi-deepseek-vision) | Gives DeepSeek vision through a local or remote vision LLM | `pi install npm:pi-deepseek-vision` |
 
 ## License
 
-[MIT](LICENSE)
+MIT
