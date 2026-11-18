@@ -15,10 +15,8 @@ All notable changes to this project are documented here.
   it. Live sessions are refused: rename those from pi.
 - Click a numeric or date column header (Msgs, Tokens, Modified; Sessions,
   Tokens on Projects) to sort: descending ▼, then ascending ▲, then back to
-  the default order.
-
-### Fixed
-- Hovering a table header no longer highlights the whole header row.
+  the default order. Hovering the header highlights only those clickable
+  labels, instead of the whole header row.
 
 ### Fixed
 - Long project names and session titles no longer push the other columns out
