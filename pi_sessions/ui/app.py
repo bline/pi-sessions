@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import math
 import os
-import time
 from collections.abc import Iterable
 from datetime import datetime
 from pathlib import Path
@@ -923,7 +922,6 @@ class PiSessionsApp(App):
     @work(thread=True, exclusive=True, group="scan")
     def _scan(self) -> None:
         """Disk scan off the UI thread — the interface stays responsive."""
-        started = time.monotonic()
         seen: set[str] = set()
         projects = discover_projects(cache=self._cache, seen_files=seen)
         # superseded by a newer scan: applying this one could undo a fresher result,
@@ -933,10 +931,9 @@ class PiSessionsApp(App):
         self._aliases.apply(projects)
         self._cache.prune(seen)
         self._cache.save()
-        elapsed = time.monotonic() - started
-        self.call_from_thread(self._apply_projects, projects, elapsed)
+        self.call_from_thread(self._apply_projects, projects)
 
-    def _apply_projects(self, projects: list[Project], elapsed: float) -> None:
+    def _apply_projects(self, projects: list[Project]) -> None:
         self.projects = projects
         self._refresh_projects_table()
         all_sessions = [s for p in self.projects for s in p.sessions]
@@ -952,7 +949,6 @@ class PiSessionsApp(App):
             f"{proj_label} - {active} sessions"
             + (f" ({', '.join(extras)})" if extras else "")
             + f" - {live_count} active"
-            + f" - scan {elapsed:.1f}s"
         )
 
     def _muted_hex(self) -> str | None:
