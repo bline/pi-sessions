@@ -124,6 +124,7 @@ def _auto_refresh_seconds() -> float:
         return 10.0
     return max(0.0, value)
 
+
 # app theme -> closest built-in pygments style for fenced code blocks
 PYGMENTS_FOR_THEME = {
     "nord": "nord",
@@ -178,7 +179,7 @@ def rich_color(theme_color: str | None, fallback: str) -> str:
     if not theme_color:
         return fallback
     if theme_color.startswith("ansi_"):
-        return theme_color[len("ansi_"):]
+        return theme_color[len("ansi_") :]
     return theme_color
 
 
@@ -427,7 +428,9 @@ class RenameScreen(ModalScreen[str | None]):
 
     def compose(self) -> ComposeResult:
         with Container(id="rename-dialog"):
-            yield Static(f"{self._label} for “{self._default_name}”", id="rename-title", markup=False)
+            yield Static(
+                f"{self._label} for “{self._default_name}”", id="rename-title", markup=False
+            )
             yield Static(
                 "Enter = save · Escape = cancel · empty = restore default name",
                 id="rename-hint",
@@ -998,9 +1001,7 @@ class PiSessionsApp(App):
         return [
             p
             for p in self.projects
-            if q in p.display_name.lower()
-            or q in p.project_path.lower()
-            or q in p.alias.lower()
+            if q in p.display_name.lower() or q in p.project_path.lower() or q in p.alias.lower()
         ]
 
     def _visible_sessions_of(self, project: Project) -> list[Session]:
@@ -1059,11 +1060,7 @@ class PiSessionsApp(App):
                 no_wrap=True,
                 overflow="ellipsis",
             )
-            sess_label = (
-                f"{len(active)}"
-                if not archived
-                else f"{len(active)}+{len(archived)}"
-            )
+            sess_label = f"{len(active)}" if not archived else f"{len(active)}+{len(archived)}"
             count = Text(sess_label, style=pal["warning"], justify="right")
             tok_style = pal["muted"] if all_archived else pal["secondary"]
             tokens = Text(fmt_tokens(p.total_tokens), style=tok_style, justify="right")
@@ -1157,9 +1154,7 @@ class PiSessionsApp(App):
                     self._keep_scroll(table, scroll_x, scroll_y, moved=row != prev_row)
                     break
 
-    def _keep_scroll(
-        self, table: DataTable, scroll_x: float, scroll_y: float, moved: bool
-    ) -> None:
+    def _keep_scroll(self, table: DataTable, scroll_x: float, scroll_y: float, moved: bool) -> None:
         """clear() snaps a table back to the top: put the view back where the
         user left it, so a rebuild (auto-refresh) never scrolls the list."""
 
@@ -1216,9 +1211,7 @@ class PiSessionsApp(App):
         )
 
         # title line only when the session actually has a summary
-        title_line = (
-            f"[bold {c_primary}]{escape(session.summary)}[/]\n" if session.summary else ""
-        )
+        title_line = f"[bold {c_primary}]{escape(session.summary)}[/]\n" if session.summary else ""
         first_prompt = session.first_prompt.strip()
         if not first_prompt:
             first_prompt = "(none)"
@@ -1454,9 +1447,7 @@ class PiSessionsApp(App):
         self._filter_target = "projects" if self._focus_on_projects() else "sessions"
         inp = self.query_one("#filter-input", FilterInput)
         inp.value = (
-            self._project_filter
-            if self._filter_target == "projects"
-            else self._session_filter
+            self._project_filter if self._filter_target == "projects" else self._session_filter
         )
         inp.placeholder = f"Filter {self._filter_target}…  (Enter = apply, Esc = clear)"
         inp.display = True
@@ -1675,9 +1666,7 @@ class PiSessionsApp(App):
             return
         p = self._current_project()
         if p is not None and p.is_archived:
-            self._set_status(
-                "Project is archived — restore the whole project (a on Projects pane)"
-            )
+            self._set_status("Project is archived — restore the whole project (a on Projects pane)")
             self.bell()
             return
         s = self._current_session()

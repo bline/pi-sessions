@@ -20,7 +20,9 @@ def latest_version(timeout: float = 3.0) -> str | None:
         try:
             body = subprocess.run(
                 ["curl", "-fsS", "--max-time", str(timeout), PYPI_URL],
-                capture_output=True, check=True, timeout=timeout + 1,
+                capture_output=True,
+                check=True,
+                timeout=timeout + 1,
             ).stdout
         except (OSError, subprocess.SubprocessError):
             return None

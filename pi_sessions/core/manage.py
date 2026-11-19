@@ -89,7 +89,8 @@ def rename_session(session: Session, name: str) -> None:
             "type": "session_info",
             "id": secrets.token_hex(4),
             "parentId": last_id,
-            "timestamp": datetime.now(timezone.utc).isoformat(timespec="milliseconds")
+            "timestamp": datetime.now(timezone.utc)
+            .isoformat(timespec="milliseconds")
             .replace("+00:00", "Z"),
             "name": name,
         }

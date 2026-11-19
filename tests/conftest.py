@@ -93,7 +93,9 @@ def write_transcript(
 @pytest.fixture(autouse=True)
 def isolated_settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Theme/layout changes in tests must never touch the real ~/.config settings."""
-    monkeypatch.setattr("pi_sessions.core.settings.DEFAULT_SETTINGS_PATH", tmp_path / "settings.json")
+    monkeypatch.setattr(
+        "pi_sessions.core.settings.DEFAULT_SETTINGS_PATH", tmp_path / "settings.json"
+    )
 
 
 @pytest.fixture

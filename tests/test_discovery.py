@@ -31,7 +31,10 @@ def test_name_wins_and_is_served_from_the_cache(fake_base, tmp_path):
     jsonl = session_file(fake_base / PROJECT_DIR)
     with jsonl.open("a", encoding="utf-8") as f:
         for i, name in enumerate(("first name", "final name")):
-            f.write(json.dumps({"type": "session_info", "id": f"n{i}", "parentId": "a1", "name": name}) + "\n")
+            f.write(
+                json.dumps({"type": "session_info", "id": f"n{i}", "parentId": "a1", "name": name})
+                + "\n"
+            )
     cache = TokenCache(tmp_path / "cache.json")
     for _ in range(2):  # second pass is served from the cache
         s = discover_projects(base=fake_base, cache=cache)[0].sessions[0]

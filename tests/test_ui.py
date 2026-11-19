@@ -177,7 +177,6 @@ def test_refresh_keeps_selection():
 async def _exercise_watch(tmp_path: Path) -> None:
     import json
 
-
     projects = _fake_projects()
     session = projects[0].sessions[0]
     transcript = tmp_path / "watched.jsonl"
@@ -349,7 +348,9 @@ async def _exercise_drag_border(tmp_path: Path) -> None:
     with (
         patch.object(appmod, "discover_projects", lambda **_kw: _fake_projects()),
         patch.object(appmod, "load_settings", lambda: settings_mod.load_settings(settings_path)),
-        patch.object(appmod, "save_settings", lambda s: settings_mod.save_settings(s, settings_path)),
+        patch.object(
+            appmod, "save_settings", lambda s: settings_mod.save_settings(s, settings_path)
+        ),
     ):
         # built inside the patch: __init__ reads the saved layout
         app = PiSessionsApp()
@@ -426,7 +427,10 @@ def test_drag_border_resizes_and_remembers(tmp_path):
 
 def test_load_layout_ignores_malformed_entries():
     layout = appmod._load_layout(
-        {"wide": {"group": {"width": 40}, "conv-scroll": {"width": 10}}, "narrow": {"group": {"height": "x"}}}
+        {
+            "wide": {"group": {"width": 40}, "conv-scroll": {"width": 10}},
+            "narrow": {"group": {"height": "x"}},
+        }
     )
     assert layout == {"wide": {"group": {"width": 40.0}}, "narrow": {}}
     assert appmod._load_layout(None) == {"wide": {}, "narrow": {}}
@@ -436,13 +440,18 @@ async def _exercise_reset_layout(tmp_path: Path) -> None:
     settings_path = tmp_path / "settings.json"
     # sizes dragged earlier in both layouts
     settings_mod.save_settings(
-        {"theme": "nord", "layout": {"wide": {"group": {"width": 30}}, "narrow": {"group": {"height": 70}}}},
+        {
+            "theme": "nord",
+            "layout": {"wide": {"group": {"width": 30}}, "narrow": {"group": {"height": 70}}},
+        },
         settings_path,
     )
     with (
         patch.object(appmod, "discover_projects", lambda **_kw: _fake_projects()),
         patch.object(appmod, "load_settings", lambda: settings_mod.load_settings(settings_path)),
-        patch.object(appmod, "save_settings", lambda s: settings_mod.save_settings(s, settings_path)),
+        patch.object(
+            appmod, "save_settings", lambda s: settings_mod.save_settings(s, settings_path)
+        ),
     ):
         # built inside the patch: __init__ reads the saved layout
         app = PiSessionsApp()

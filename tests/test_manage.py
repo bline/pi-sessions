@@ -51,9 +51,10 @@ def test_delete_session_removes_file(fake_base):
 def test_delete_session_goes_through_trash_when_asked(fake_base, monkeypatch):
     s = _session(fake_base)
     monkeypatch.setenv("PI_SESSIONS_TRASH", "1")
-    with patch.object(manage.shutil, "which", return_value="/usr/bin/trash"), patch.object(
-        manage.subprocess, "run"
-    ) as run:
+    with (
+        patch.object(manage.shutil, "which", return_value="/usr/bin/trash"),
+        patch.object(manage.subprocess, "run") as run,
+    ):
         delete_session(s)
     run.assert_called_once()
     assert run.call_args.args[0] == ["trash", str(s.jsonl_path)]
@@ -71,8 +72,9 @@ def test_archive_project_moves_directory(fake_base, tmp_path):
 
 def test_restore_project_moves_directory_back(fake_base, tmp_path):
     arch_base = tmp_path / "sessions-archive"
-    with patch.object(manage, "SESSIONS_ARCHIVE_DIR", arch_base), patch.object(
-        manage, "SESSIONS_DIR", fake_base
+    with (
+        patch.object(manage, "SESSIONS_ARCHIVE_DIR", arch_base),
+        patch.object(manage, "SESSIONS_DIR", fake_base),
     ):
         archive_project(discover_projects(base=fake_base)[0])
         archived = discover_projects(base=fake_base, archive_base=arch_base)[0]
