@@ -428,13 +428,22 @@ class SettingsScreen(ModalScreen[None]):
                 load_settings().get("show_modified", True),
                 id="show_modified",
             )
+            yield Static("Details", classes="section")
+            yield Tick(
+                "Show resume command",
+                load_settings().get("show_resume_command", False),
+                id="show_resume_command",
+            )
             yield Static("Esc to close", id="dialog-hint")
 
     def on_mount(self) -> None:
         self.query_one("#dialog").border_title = "Settings"
 
     def on_checkbox_changed(self, event: Checkbox.Changed) -> None:
-        self.app.set_show_modified(event.value)  # type: ignore[attr-defined]
+        if event.checkbox.id == "show_resume_command":
+            self.app.set_show_resume_command(event.value)  # type: ignore[attr-defined]
+        else:
+            self.app.set_show_modified(event.value)  # type: ignore[attr-defined]
 
 
 class FilterInput(Input):
@@ -807,6 +816,7 @@ class PiSessionsApp(App):
         self._layout = _load_layout(load_settings().get("layout"))
         self._mode = ""
         self._show_modified = load_settings().get("show_modified", True)
+        self._show_resume_command = load_settings().get("show_resume_command", False)
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -889,6 +899,13 @@ class PiSessionsApp(App):
             del self._sort["sessions-table"]
         self._build_session_columns()
         self._show_sessions_for(self.query_one("#projects-table", DataTable).cursor_row)
+
+    def set_show_resume_command(self, show: bool) -> None:
+        self._show_resume_command = show
+        settings = load_settings()
+        settings["show_resume_command"] = show
+        save_settings(settings)
+        self._update_preview(self._current_session(), force=True)
 
     def _build_session_columns(self) -> None:
         stable = self.query_one("#sessions-table", DataTable)
@@ -1303,11 +1320,11 @@ class PiSessionsApp(App):
                 if not cwd_exists
                 else ""
             )
-            resume_line = (
-                f"\n[bold]Resume command[/bold] [{c_muted}](c = copy to clipboard)[/]"
-                f"{warn}\n"
-                f"[{c_primary}]{escape(cmd)}[/]\n"
-            )
+            # hidden by default: the text can't be mouse-copied, `c` is the way
+            show = self._show_resume_command
+            shown = f"\n[{c_primary}]{escape(cmd)}[/]" if show else ""
+            hint = "(c = copy to clipboard)" if show else ": press c to copy to clipboard"
+            resume_line = f"\n[bold]Resume command[/bold] [{c_muted}]{hint}[/]{warn}{shown}\n"
 
         watch_state = self._watch_state(session)
         if watch_state:

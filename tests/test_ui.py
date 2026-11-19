@@ -590,6 +590,18 @@ async def _exercise_show_modified_setting(tmp_path) -> None:
             assert table.row_count and len(table.get_row_at(0)) == len(table.columns)
             assert "sessions-table" not in app._sort  # sort on a hidden column is dropped
             assert settings_mod.load_settings(settings_path)["show_modified"] is False
+
+            def details() -> str:
+                console = Console(width=200, record=True, file=io.StringIO())
+                console.print(app.query_one("#preview-content", Static).content)
+                return console.export_text()
+
+            assert "Resume command : press c to copy" in details()  # hidden by default
+            await pilot.click("#show_resume_command")
+            await pilot.pause()
+            assert "Resume command : press c to copy" not in details()
+            assert "Resume command" in details()
+            assert settings_mod.load_settings(settings_path)["show_resume_command"] is True
             await pilot.press("escape")
             await pilot.pause()
             assert table.columns["fit"].width > wide_before  # Title takes the room
