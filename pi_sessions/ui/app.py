@@ -615,7 +615,9 @@ class FitTable(DataTable):
         if fit.auto_width or fit.width != width:
             fit.auto_width, fit.width = False, width
             self._clear_caches()
-            self._require_update_dimensions = True  # rerun once with the new width
+            # recompute virtual_size now: a deferred rerun waits for an idle that
+            # may never come after the last resize, leaving a stale h-scrollbar
+            super()._update_dimensions(())
 
     def on_resize(self, _: events.Resize) -> None:
         self._require_update_dimensions = True

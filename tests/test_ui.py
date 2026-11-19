@@ -604,3 +604,32 @@ async def _exercise_show_modified_setting(tmp_path) -> None:
 
 def test_show_modified_setting(tmp_path):
     asyncio.run(_exercise_show_modified_setting(tmp_path))
+
+
+async def _exercise_fit_table_shrink() -> None:
+    from textual.app import App
+
+    class FitApp(App):
+        def compose(self):
+            yield appmod.FitTable()
+
+        def on_mount(self) -> None:
+            table = self.query_one(appmod.FitTable)
+            table.styles.width = 60
+            table.add_column("Title", key="fit")
+            table.add_column("Tokens")
+            table.add_row("x" * 80, "12.3k")
+
+    app = FitApp()
+    async with app.run_test(size=(120, 20)) as pilot:
+        await pilot.pause()
+        table = app.query_one(appmod.FitTable)
+        table.styles.width = 40
+        # no further events: the fit width must settle within the resize's idle
+        await asyncio.sleep(0.3)
+        assert table.virtual_size.width == table.size.width
+        assert not table.show_horizontal_scrollbar
+
+
+def test_fit_table_shrink_leaves_no_horizontal_scrollbar():
+    asyncio.run(_exercise_fit_table_shrink())
