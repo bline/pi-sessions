@@ -24,6 +24,10 @@ All notable changes to this project are documented here.
   when it widens. The full name stays visible in Details.
 - Auto-refresh no longer resets the horizontal scroll of the Projects and
   Sessions tables.
+- Titles and project names get more room: the status and watch icons share
+  one narrow column, the live dot sits next to the project name, and the
+  blank margin after the last column is gone (it was counted twice, plus a
+  scrollbar slot reserved even when no scrollbar showed).
 
 ## [0.2.0] — 2026-11-18
 

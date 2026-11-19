@@ -521,7 +521,8 @@ async def _exercise_sort() -> None:
             # header hover lights only the hovered label, and only a sortable one
             from textual.coordinate import Coordinate
 
-            msgs, title = Coordinate(-1, st.get_column_index("msgs")), Coordinate(-1, 2)
+            msgs = Coordinate(-1, st.get_column_index("msgs"))
+            title = Coordinate(-1, st.get_column_index("fit"))
             assert st._should_highlight(msgs, msgs, "row")
             assert not st._should_highlight(title, title, "row")
             assert not st._should_highlight(msgs, Coordinate(-1, msgs.column + 1), "row")

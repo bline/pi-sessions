@@ -549,8 +549,12 @@ class FitTable(DataTable):
         if fit is None:
             return
         others = sum(c.get_render_width(self) for k, c in self.columns.items() if k != "fit")
-        # always reserve the vertical scrollbar: it may appear after this pass
-        room = self.size.width - self.styles.gutter.width - self.styles.scrollbar_size_vertical
+        # reserve the vertical scrollbar only when the rows overflow (row height 1)
+        # self.size is the content box already: border/padding are excluded
+        bar = self.styles.scrollbar_size_vertical
+        if self.row_count <= self.size.height - self.header_height:
+            bar = 0
+        room = self.size.width - bar
         width = max(self.FIT_MIN, room - others - 2 * self.cell_padding)
         if fit.auto_width or fit.width != width:
             fit.auto_width, fit.width = False, width
@@ -825,13 +829,13 @@ class PiSessionsApp(App):
             self.theme = "ansi-dark"  # unknown theme name — fall back
         self._apply_markdown_styles()
         ptable = self.query_one("#projects-table", DataTable)
-        ptable.add_column(" ")
-        ptable.add_column("Project", key="fit")
+        # live marker sits in the name cell: one space instead of two paddings
+        ptable.add_column("  Project", key="fit")
         for key, (label, _) in SORTABLE["projects-table"].items():
             ptable.add_column(label, key=key)
         ptable.border_title = "Projects"
         stable = self.query_one("#sessions-table", DataTable)
-        stable.add_columns(" ", "  ")
+        stable.add_column("  ")  # status marker + watch eye share one cell
         stable.add_column("Title", key="fit")
         for key, (label, _) in SORTABLE["sessions-table"].items():
             stable.add_column(label, key=key)
@@ -1048,7 +1052,13 @@ class PiSessionsApp(App):
             else:
                 live = Text(" ")
             name_style = f"{pal['muted']} italic" if all_archived else f"bold {pal['primary']}"
-            name = Text(p.display_name, style=name_style, no_wrap=True, overflow="ellipsis")
+            name = Text.assemble(
+                live,
+                " ",
+                (p.display_name, name_style),
+                no_wrap=True,
+                overflow="ellipsis",
+            )
             sess_label = (
                 f"{len(active)}"
                 if not archived
@@ -1057,7 +1067,7 @@ class PiSessionsApp(App):
             count = Text(sess_label, style=pal["warning"], justify="right")
             tok_style = pal["muted"] if all_archived else pal["secondary"]
             tokens = Text(fmt_tokens(p.total_tokens), style=tok_style, justify="right")
-            table.add_row(live, name, count, tokens)
+            table.add_row(name, count, tokens)
         if table.row_count:
             row = 0
             if prev_dir is not None:
@@ -1138,7 +1148,8 @@ class PiSessionsApp(App):
             tok_style = pal["muted"] if inactive else pal["secondary"]
             tokens = Text(fmt_tokens(s.tokens), style=tok_style, justify="right")
             modified = Text(fmt_date(s.modified), style=pal["muted"])
-            table.add_row(marker, self._watch_eye(s, pal), desc, count, tokens, modified)
+            icons = Text.assemble(marker, self._watch_eye(s, pal))
+            table.add_row(icons, desc, count, tokens, modified)
         if prev_sid is not None:
             for row, s in enumerate(sessions):
                 if s.session_id == prev_sid:
