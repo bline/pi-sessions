@@ -23,7 +23,7 @@ from textual.geometry import Region
 from textual.message import Message
 from textual.screen import ModalScreen, Screen
 from textual.widget import Widget
-from textual.widgets import Button, DataTable, Footer, Header, Input, Static
+from textual.widgets import Button, Checkbox, DataTable, Footer, Header, Input, Static
 from textual.widgets._footer import FooterKey
 from textual.worker import get_current_worker
 
@@ -381,6 +381,59 @@ class ConfirmScreen(ModalScreen[bool]):
 
     def action_cancel(self) -> None:
         self.dismiss(False)
+
+
+class Tick(Checkbox):
+    """Checkbox that is empty when off; the stock one greys an X, which reads as ticked."""
+
+    @property
+    def BUTTON_INNER(self) -> str:  # noqa: N802 — overrides Textual's class attribute
+        return "X" if self.value else " "
+
+
+class SettingsScreen(ModalScreen[None]):
+    """User preferences; each change applies and saves immediately."""
+
+    DEFAULT_CSS = """
+    SettingsScreen {
+        align: center middle;
+    }
+
+    #dialog {
+        width: 60;
+        height: auto;
+        padding: 1 2;
+        border: round $primary;
+        background: $surface;
+    }
+
+    .section {
+        text-style: bold;
+    }
+
+    #dialog-hint {
+        margin-top: 1;
+        color: $text-muted;
+    }
+    """
+
+    BINDINGS = [Binding("escape", "dismiss", "Close")]
+
+    def compose(self) -> ComposeResult:
+        with Container(id="dialog"):
+            yield Static("Display", classes="section")
+            yield Tick(
+                "Show Modified column in Sessions",
+                load_settings().get("show_modified", True),
+                id="show_modified",
+            )
+            yield Static("Esc to close", id="dialog-hint")
+
+    def on_mount(self) -> None:
+        self.query_one("#dialog").border_title = "Settings"
+
+    def on_checkbox_changed(self, event: Checkbox.Changed) -> None:
+        self.app.set_show_modified(event.value)  # type: ignore[attr-defined]
 
 
 class FilterInput(Input):
@@ -750,6 +803,7 @@ class PiSessionsApp(App):
         # {"wide": {"group": {"width": 40.0}}, "narrow": {...}}
         self._layout = _load_layout(load_settings().get("layout"))
         self._mode = ""
+        self._show_modified = load_settings().get("show_modified", True)
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -819,6 +873,29 @@ class PiSessionsApp(App):
             "Put every pane back to its default size (wide and narrow layouts)",
             self.action_reset_layout,
         )
+        yield SystemCommand(
+            "Settings", "Display preferences", lambda: self.push_screen(SettingsScreen())
+        )
+
+    def set_show_modified(self, show: bool) -> None:
+        self._show_modified = show
+        settings = load_settings()
+        settings["show_modified"] = show
+        save_settings(settings)
+        if self._sort.get("sessions-table", ("",))[0] == "modified":
+            del self._sort["sessions-table"]
+        self._build_session_columns()
+        self._show_sessions_for(self.query_one("#projects-table", DataTable).cursor_row)
+
+    def _build_session_columns(self) -> None:
+        stable = self.query_one("#sessions-table", DataTable)
+        stable.clear(columns=True)
+        stable.add_column("  ")  # status marker + watch eye share one cell
+        stable.add_column("Title", key="fit")
+        for key, (label, _) in SORTABLE["sessions-table"].items():
+            if key != "modified" or self._show_modified:
+                stable.add_column(label, key=key)
+        self._label_sort_arrows(stable)
 
     def on_mount(self) -> None:
         self.title = "Pi Sessions"
@@ -836,11 +913,8 @@ class PiSessionsApp(App):
         for key, (label, _) in SORTABLE["projects-table"].items():
             ptable.add_column(label, key=key)
         ptable.border_title = "Projects"
+        self._build_session_columns()
         stable = self.query_one("#sessions-table", DataTable)
-        stable.add_column("  ")  # status marker + watch eye share one cell
-        stable.add_column("Title", key="fit")
-        for key, (label, _) in SORTABLE["sessions-table"].items():
-            stable.add_column(label, key=key)
         stable.border_title = "Sessions"
         self.query_one("#info-scroll").border_title = "Details"
         self.query_one("#conv-scroll").border_title = "Conversation"
@@ -1142,7 +1216,8 @@ class PiSessionsApp(App):
             tokens = Text(fmt_tokens(s.tokens), style=tok_style, justify="right")
             modified = Text(fmt_date(s.modified), style=pal["muted"])
             icons = Text.assemble(marker, self._watch_eye(s, pal))
-            table.add_row(icons, desc, count, tokens, modified)
+            cells = [icons, desc, count, tokens, modified]
+            table.add_row(*cells if self._show_modified else cells[:-1])
         if prev_sid is not None:
             for row, s in enumerate(sessions):
                 if s.session_id == prev_sid:
@@ -1356,17 +1431,22 @@ class PiSessionsApp(App):
             self._sort[table.id] = (column, False)
         else:
             del self._sort[table.id]
-        sort = self._sort.get(table.id)
-        for key, (label, _) in sortable.items():
+        self._label_sort_arrows(table)
+        if table.id == "projects-table":
+            self._refresh_projects_table()
+        else:
+            self._show_sessions_for(self.query_one("#projects-table", DataTable).cursor_row)
+
+    def _label_sort_arrows(self, table: DataTable) -> None:
+        sort = self._sort.get(table.id or "")
+        for key, (label, _) in SORTABLE[table.id or ""].items():
+            if key not in table.columns:
+                continue  # hidden by a setting
             arrow = "" if sort is None or sort[0] != key else (" ▼" if sort[1] else " ▲")
             col = table.columns[key]
             col.label = Text(label + arrow)
             # a label only sizes its column when added: make room for the arrow
             col.content_width = max(col.content_width, col.label.cell_len)
-        if table.id == "projects-table":
-            self._refresh_projects_table()
-        else:
-            self._show_sessions_for(self.query_one("#projects-table", DataTable).cursor_row)
 
     def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
         # read the table's live cursor instead of the event payload: clear() and

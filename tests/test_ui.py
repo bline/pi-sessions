@@ -557,3 +557,47 @@ async def _exercise_sort() -> None:
 
 def test_header_click_cycles_sort() -> None:
     asyncio.run(_exercise_sort())
+
+
+async def _exercise_show_modified_setting(tmp_path) -> None:
+    settings_path = tmp_path / "settings.json"
+    with (
+        patch.object(appmod, "discover_projects", lambda **_kw: _fake_projects()),
+        patch.object(appmod, "load_settings", lambda: settings_mod.load_settings(settings_path)),
+        patch.object(
+            appmod, "save_settings", lambda s: settings_mod.save_settings(s, settings_path)
+        ),
+    ):
+        app = PiSessionsApp()
+        async with app.run_test(size=(160, 40)) as pilot:
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+            table = app.query_one("#sessions-table")
+            assert "modified" in table.columns
+            app._sort["sessions-table"] = ("modified", True)
+            wide_before = table.columns["fit"].width
+
+            commands = [c.title for c in app.get_system_commands(app.screen)]
+            assert "Settings" in commands
+            app.push_screen(appmod.SettingsScreen())
+            await pilot.pause()
+            await pilot.click("#show_modified")
+            await pilot.pause()
+            assert "modified" not in table.columns
+            assert table.row_count and len(table.get_row_at(0)) == len(table.columns)
+            assert "sessions-table" not in app._sort  # sort on a hidden column is dropped
+            assert settings_mod.load_settings(settings_path)["show_modified"] is False
+            await pilot.press("escape")
+            await pilot.pause()
+            assert table.columns["fit"].width > wide_before  # Title takes the room
+
+        # the choice survives a restart
+        app = PiSessionsApp()
+        async with app.run_test(size=(160, 40)) as pilot:
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+            assert "modified" not in app.query_one("#sessions-table").columns
+
+
+def test_show_modified_setting(tmp_path):
+    asyncio.run(_exercise_show_modified_setting(tmp_path))

@@ -5,6 +5,9 @@ All notable changes to this project are documented here.
 ## [Unreleased]
 
 ### Added
+- **Settings** in the command palette (`ctrl+p`). First option, under
+  Display: hide the Modified column of the Sessions table so titles get more
+  room. Saved as `"show_modified"` in `~/.config/pi-sessions/settings.json`.
 - The header shows the installed version. On launch, a background check asks
   PyPI for the latest release; when it is newer, the header shows it with the
   upgrade command. Disable with `"check_updates": false` in
