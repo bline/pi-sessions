@@ -10,6 +10,7 @@ from rich.console import Group
 from rich.markdown import Markdown
 from rich.markup import escape
 from rich.padding import Padding
+from rich.table import Table
 from rich.text import Text
 from rich.theme import Theme as RichTheme
 from textual import events, work
@@ -1322,30 +1323,43 @@ class PiSessionsApp(App):
             watch_line = ""
 
         t = session.tokens
-        text = (
-            f"{title_line}"
-            f"{state}{model}{branches}\n{fork}\n"
-            f"[{c_muted}]ID:[/]  [{c_text}]{session.session_id}[/]\n"
-            f"[{c_muted}]CWD:[/] [{c_text}]{escape(short_path(session.project_path))}[/]"
-            f"{'' if cwd_exists else f' [{c_warning}](does not exist)[/]'}\n"
-            f"[{c_muted}]Created:[/]  [{c_text}]{fmt_date(session.created)}[/]\n"
-            f"[{c_muted}]Modified:[/] [{c_text}]{fmt_date(session.modified)}[/]\n"
-            f"[{c_muted}]Messages:[/] [{c_warning}]{session.message_count}[/]\n"
-            f"\n"
+        status = f"{state}{model}{branches}\n{fork}"
+        # labels apart from values, so a long CWD folds in its own column
+        meta = Table.grid(padding=(0, 1))
+        meta.add_column(no_wrap=True)
+        meta.add_column(ratio=1, overflow="fold")
+        missing = "" if cwd_exists else f" [{c_warning}](does not exist)[/]"
+        for label, value in (
+            ("ID:", f"[{c_text}]{session.session_id}[/]"),
+            ("CWD:", f"[{c_text}]{escape(short_path(session.project_path))}[/]{missing}"),
+            ("Created:", f"[{c_text}]{fmt_date(session.created)}[/]"),
+            ("Modified:", f"[{c_text}]{fmt_date(session.modified)}[/]"),
+            ("Messages:", f"[{c_warning}]{session.message_count}[/]"),
+        ):
+            meta.add_row(Text.from_markup(f"[{c_muted}]{label}[/]"), Text.from_markup(value))
+        tokens = (
             f"[bold]Tokens[/bold]\n"
-            f"  [{c_success}]input:[/]       [{c_text}]{t.input:>12,}[/]\n"
-            f"  [{c_secondary}]output:[/]      [{c_text}]{t.output:>12,}[/]\n"
-            f"  [{c_primary}]cache read:[/]  [{c_text}]{t.cache_read:>12,}[/]\n"
-            f"  [{c_accent}]cache write:[/] [{c_text}]{t.cache_write:>12,}[/]\n"
-            f"  [bold]Σ total:[/]     [bold {c_warning}]{t.total:>12,}[/]\n"
-            f"  [bold]$ cost:[/]      [bold {c_warning}]{t.cost:>12.4f}[/]\n"
+            f"[{c_success}]input:[/]       [{c_text}]{t.input:>12,}[/]\n"
+            f"[{c_secondary}]output:[/]      [{c_text}]{t.output:>12,}[/]\n"
+            f"[{c_primary}]cache read:[/]  [{c_text}]{t.cache_read:>12,}[/]\n"
+            f"[{c_accent}]cache write:[/] [{c_text}]{t.cache_write:>12,}[/]\n"
+            f"[bold]Σ total:[/]     [bold {c_warning}]{t.total:>12,}[/]\n"
+            f"[bold]$ cost:[/]      [bold {c_warning}]{t.cost:>12.4f}[/]"
+        )
+        footer = (
             f"{resume_line}"
             f"{watch_line}"
             f"\n"
             f"[bold]First prompt[/bold]\n"
             f"[{c_text}]{escape(first_prompt)}[/]"
         )
-        widget.update(text)
+        # state and settings left, tokens right
+        top = Table.grid(expand=True, padding=(0, 3))
+        top.add_column(ratio=1)
+        top.add_column(no_wrap=True)
+        top.add_row(Group(Text.from_markup(status), meta), Text.from_markup(tokens))
+        parts = [Text.from_markup(title_line.rstrip())] if title_line else []
+        widget.update(Group(*parts, top, Text.from_markup(footer)))
 
     def _update_conversation(self, session: Session | None) -> None:
         widget = self.query_one("#conversation-content", Static)

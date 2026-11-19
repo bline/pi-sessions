@@ -41,6 +41,8 @@ All notable changes to this project are documented here.
   A saved Sessions height from an earlier drag is ignored.
 - Panes are resized by dragging their borders: the split bars between them
   are gone, so the panes touch. Double-click a border to reset it.
+- Details: token counts sit to the right of ID / CWD / dates instead of below
+  them. A long CWD wraps inside its column.
 
 ### Fixed
 - Dragging a pane border no longer selects the text of the panes it crosses.

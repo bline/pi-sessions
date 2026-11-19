@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+import io
 from pathlib import Path
 from unittest.mock import patch
 
+from rich.console import Console
 from textual.widgets import Static
 
 import pi_sessions.ui.app as appmod
@@ -204,8 +206,9 @@ async def _exercise_watch(tmp_path: Path) -> None:
             assert "### You\n\nhello" in doc.read_text(encoding="utf-8")
 
             # the details pane advertises the document path
-            details = str(app.query_one("#preview-content", Static).render())
-            assert "Live document" in details
+            console = Console(width=100, record=True, file=io.StringIO())
+            console.print(app.query_one("#preview-content", Static).content)
+            assert "Live document" in console.export_text()
 
             await pilot.press("l")  # stop following
             await pilot.pause()
