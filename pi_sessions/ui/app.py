@@ -1273,17 +1273,17 @@ class PiSessionsApp(App):
             widget.update("[dim]No session selected[/dim]")
             return
 
-        # colors follow the active Textual theme instead of being hardcoded;
-        # plain names (red, cyan…) in Textual markup would be vivid web colors
+        # colors follow the active Textual theme instead of being hardcoded
         th = self.current_theme
-        c_success = th.success or "ansi_green"
-        c_warning = th.warning or "ansi_yellow"
-        c_error = th.error or "ansi_red"
-        c_primary = th.primary or "ansi_cyan"
-        c_secondary = th.secondary or "ansi_magenta"
-        c_accent = th.accent or "ansi_blue"
-        c_text = th.foreground or "ansi_default"
-        c_muted = self._muted_hex() or "ansi_bright_black"
+        # rendered as Rich markup, which spells ansi_green as green
+        c_success = rich_color(th.success, "green")
+        c_warning = rich_color(th.warning, "yellow")
+        c_error = rich_color(th.error, "red")
+        c_primary = rich_color(th.primary, "cyan")
+        c_secondary = rich_color(th.secondary, "magenta")
+        c_accent = rich_color(th.accent, "blue")
+        c_text = rich_color(th.foreground, "default")
+        c_muted = rich_color(self._muted_hex(), "bright_black")
 
         if session.is_archived:
             state = f"[{c_error}]▪ archived (a = restore)[/]"

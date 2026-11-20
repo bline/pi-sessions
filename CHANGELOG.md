@@ -25,6 +25,9 @@ All notable changes to this project are documented here.
   labels, instead of the whole header row.
 
 ### Fixed
+- Details colors (state, model, labels, token lines) with `ansi-*` themes:
+  they were dropped in exported screenshots since the pane moved to Rich
+  tables.
 - Long project names and session titles no longer push the other columns out
   of a narrow pane: they are cut with `…` to fit the pane width and grow back
   when it widens. The full name stays visible in Details.
