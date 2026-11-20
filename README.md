@@ -48,7 +48,8 @@ Each installs the `pisessions` command. Needs Python ≥ 3.10 on macOS or Linux;
 ## Use
 
 ```bash
-pisessions
+pisessions # launch
+pisessions --version # show version
 ```
 
 | Key | Action |
@@ -63,7 +64,7 @@ pisessions
 | `e` | Export the session (Markdown or raw JSONL) |
 | `l` | Follow the session in a live Markdown document |
 | `/` | Filter the focused list (projects or sessions) |
-| `p` | Command palette (change theme) |
+| `p` | Command palette (main menu : settings, change theme, reset, etc...) |
 | `Ctrl+R` | Rescan now (a rescan also runs automatically) |
 | `q` | Quit |
 
