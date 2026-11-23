@@ -6,6 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from rich.console import Console
+from textual.command import CommandList
 from textual.widgets import Static
 
 import pi_sessions.ui.app as appmod
@@ -645,3 +646,46 @@ async def _exercise_fit_table_shrink() -> None:
 
 def test_fit_table_shrink_leaves_no_horizontal_scrollbar():
     asyncio.run(_exercise_fit_table_shrink())
+
+
+async def _exercise_theme_preview(tmp_path: Path) -> None:
+    settings_path = tmp_path / "settings.json"
+    settings_mod.save_settings({"theme": "nord"}, settings_path)
+    with (
+        patch.object(appmod, "discover_projects", lambda **_kw: _fake_projects()),
+        patch.object(appmod, "load_settings", lambda: settings_mod.load_settings(settings_path)),
+        patch.object(
+            appmod, "save_settings", lambda s: settings_mod.save_settings(s, settings_path)
+        ),
+    ):
+        app = PiSessionsApp()
+        async with app.run_test(size=(120, 40)) as pilot:
+            await app.workers.wait_for_complete()
+            app.search_themes()
+            await pilot.pause()
+            assert app.theme == "nord"  # opening alone doesn't switch
+            await pilot.press("down")
+            await pilot.pause()
+            previewed = app.theme
+            assert previewed != "nord"
+            await pilot.press("escape")
+            await pilot.pause()
+            assert app.theme == "nord"  # Esc restores
+
+            app.search_themes()
+            await pilot.pause()
+            await pilot.press("down", "enter")
+            await pilot.pause()
+            assert app.theme == previewed  # Enter keeps the preview
+            assert settings_mod.load_settings(settings_path)["theme"] == previewed
+
+            # a click highlights and selects in one go, after the palette closed
+            app.search_themes()
+            await pilot.pause()
+            await pilot.click(CommandList, offset=(3, 12))
+            await pilot.pause()
+            assert app.theme != previewed
+
+
+def test_theme_preview(tmp_path):
+    asyncio.run(_exercise_theme_preview(tmp_path))

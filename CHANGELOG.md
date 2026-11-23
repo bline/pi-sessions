@@ -23,6 +23,10 @@ All notable changes to this project are documented here.
   Tokens on Projects) to sort: descending ▼, then ascending ▲, then back to
   the default order. Hovering the header highlights only those clickable
   labels, instead of the whole header row.
+- Reworked the theme picker (Change theme in the palette): each theme is
+  previewed live as you move through the list (↑/↓ or typing); Enter keeps it,
+  Esc restores the previous theme. The picker is narrower and no longer dims
+  the app, so the preview stays visible around it.
 
 ### Fixed
 - Details colors (state, model, labels, token lines) with `ansi-*` themes:

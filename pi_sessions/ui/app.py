@@ -17,12 +17,14 @@ from textual import events, work
 from textual.app import App, ComposeResult, SystemCommand
 from textual.binding import Binding
 from textual.color import Color as TextualColor
+from textual.command import CommandInput, CommandPalette
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.coordinate import Coordinate
 from textual.errors import NoWidget
 from textual.geometry import Region
 from textual.message import Message
 from textual.screen import ModalScreen, Screen
+from textual.theme import ThemeProvider
 from textual.widget import Widget
 from textual.widgets import Button, Checkbox, DataTable, Footer, Header, Input, Static
 from textual.widgets._footer import FooterKey
@@ -688,6 +690,15 @@ class PiSessionsApp(App):
         background: $surface;
     }
 
+    /* theme palette: narrow and undimmed so the live preview stays visible */
+    #theme-palette {
+        background: transparent;
+    }
+    #theme-palette > Vertical {
+        width: 30%;
+        min-width: 30;
+    }
+
     #main {
         height: 1fr;
     }
@@ -989,6 +1000,46 @@ class PiSessionsApp(App):
         if 0 <= srow < stable.row_count:
             stable.move_cursor(row=srow)
         self._update_preview(self._current_session(), force=True)
+
+    # live theme preview: arrowing through the theme palette applies each
+    # theme; Esc restores the one active when the palette opened
+    _theme_before_preview: str | None = None
+    _theme_preview_armed = False
+
+    def search_themes(self) -> None:
+        self._theme_before_preview = self.theme
+        self._theme_preview_armed = False
+        # same as App.search_themes, with an id so the CSS can narrow it
+        self.push_screen(
+            CommandPalette(
+                providers=[ThemeProvider],
+                placeholder="Search for themes…",
+                id="theme-palette",
+            )
+        )
+
+    def on_command_palette_option_highlighted(
+        self, event: CommandPalette.OptionHighlighted
+    ) -> None:
+        # a click highlights and selects at once: the palette is already gone
+        # by the time this arrives, and the selection sets the theme itself
+        if self._theme_before_preview is None or not isinstance(self.screen, CommandPalette):
+            return
+        hl = event.highlighted_event
+        query = self.screen.query_one(CommandInput).value
+        # the palette auto-highlights its first row on open; don't jump
+        # to that theme until the user navigates or types
+        if not self._theme_preview_armed and hl.option_index == 0 and not query:
+            return
+        self._theme_preview_armed = True
+        name = getattr(hl.option, "hit", None) and hl.option.hit.text
+        if name in self.available_themes:
+            self.theme = name
+
+    def on_command_palette_closed(self, event: CommandPalette.Closed) -> None:
+        before, self._theme_before_preview = self._theme_before_preview, None
+        if before is not None and not event.option_selected:
+            self.theme = before
 
     def action_refresh(self) -> None:
         self._set_status("Scanning...")
