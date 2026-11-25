@@ -583,7 +583,7 @@ async def _exercise_show_modified_setting(tmp_path) -> None:
 
             commands = [c.title for c in app.get_system_commands(app.screen)]
             assert "Settings" in commands
-            app.push_screen(appmod.SettingsScreen())
+            app.action_show_settings()
             await pilot.pause()
             await pilot.click("#show_modified")
             await pilot.pause()
@@ -689,3 +689,34 @@ async def _exercise_theme_preview(tmp_path: Path) -> None:
 
 def test_theme_preview(tmp_path):
     asyncio.run(_exercise_theme_preview(tmp_path))
+
+
+async def _exercise_one_side_panel() -> None:
+    with (
+        patch.object(appmod, "discover_projects", lambda **_kw: _fake_projects()),
+        patch.object(appmod, "load_settings", lambda: {}),
+        patch.object(appmod, "save_settings", lambda _s: None),
+    ):
+        app = PiSessionsApp()
+        async with app.run_test(size=(120, 40)) as pilot:
+            await app.workers.wait_for_complete()
+
+            def panels() -> tuple[int, int]:
+                return len(app.screen.query("HelpPanel")), len(app.screen.query("SettingsPanel"))
+
+            app.action_show_help_panel()
+            await pilot.pause()
+            assert panels() == (1, 0)
+            app.action_show_settings()
+            await pilot.pause()
+            assert panels() == (0, 1)  # settings replaces keys
+            app.action_show_help_panel()
+            await pilot.pause()
+            assert panels() == (1, 0)  # and the other way round
+            await pilot.press("escape")
+            await pilot.pause()
+            assert panels() == (0, 0)
+
+
+def test_keys_and_settings_panels_are_exclusive():
+    asyncio.run(_exercise_one_side_panel())
