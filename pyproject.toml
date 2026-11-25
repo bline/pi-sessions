@@ -63,3 +63,7 @@ line-length = 100
 select = ["E", "F", "I", "UP", "B"]
 # long strings, deliberate lambdas, `l` for lightness in HLS maths
 ignore = ["E501", "E731", "E741"]
+
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
