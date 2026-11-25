@@ -26,7 +26,7 @@ from textual.message import Message
 from textual.screen import ModalScreen, Screen
 from textual.theme import ThemeProvider
 from textual.widget import Widget
-from textual.widgets import Button, Checkbox, DataTable, Footer, Header, Input, Static
+from textual.widgets import Button, Checkbox, DataTable, Footer, Header, HelpPanel, Input, Static
 from textual.widgets._footer import FooterKey
 from textual.worker import get_current_worker
 
@@ -210,6 +210,30 @@ def _resume_request(session: Session) -> ResumeRequest:
     return ResumeRequest(
         session_id=session.session_id, cwd=session.project_path, file=str(session.jsonl_path)
     )
+
+
+class ClosableHelpPanel(HelpPanel):
+    """Keys panel with an ✕ on top, so it closes without reopening the palette."""
+
+    DEFAULT_CSS = """
+    ClosableHelpPanel #help-close {
+        dock: top;
+        width: 100%;
+        height: 1;
+        content-align: right middle;
+    }
+    ClosableHelpPanel #help-close:hover {
+        color: $error;
+    }
+    """
+
+    def compose(self) -> ComposeResult:
+        yield Static("✕", id="help-close")
+        yield from super().compose()
+
+    def on_click(self, event: events.Click) -> None:
+        if event.widget is not None and event.widget.id == "help-close":
+            self.app.action_hide_help_panel()
 
 
 class Panes(Container):
@@ -889,6 +913,10 @@ class PiSessionsApp(App):
         self._layout = _load_layout(None)
         self._apply_layout()
         self._save_layout()
+
+    def action_show_help_panel(self) -> None:
+        if not self.screen.query(HelpPanel):
+            self.screen.mount(ClosableHelpPanel())
 
     def get_system_commands(self, screen: Screen) -> Iterable[SystemCommand]:
         yield from super().get_system_commands(screen)
