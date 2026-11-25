@@ -43,7 +43,13 @@ pipx install pi-sessions-tui        # or: uv tool install pi-sessions-tui
 git clone https://github.com/psychobarge/pi-sessions && pip install -e pi-sessions
 ```
 
-Each installs the `pisessions` command. Needs Python ≥ 3.10 on macOS or Linux; `pi` on your PATH only for resuming.
+Each installs the `pisessions` command. To run it without installing, use uv:
+
+```bash
+uvx --from pi-sessions-tui pisessions
+```
+
+Needs Python ≥ 3.10 on macOS or Linux; `pi` on your PATH only for resuming.
 
 ## Use
 
