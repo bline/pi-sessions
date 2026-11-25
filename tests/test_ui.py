@@ -4,9 +4,12 @@ import asyncio
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 import pi_sessions.ui.app as appmod
 from pi_sessions.core.models import Project, Session
 from pi_sessions.core import settings as settings_mod
+from pi_sessions.core.resume import ResumeRequest
 from textual.widgets import Static
 
 from pi_sessions.ui.app import PiSessionsApp
@@ -86,6 +89,43 @@ async def _exercise_filters() -> None:
 
 def test_filter_projects_and_sessions():
     asyncio.run(_exercise_filters())
+
+
+@pytest.mark.parametrize(("select_mode", "label"), [(False, "Resume"), (True, "Select")])
+def test_r_returns_highlighted_session(select_mode, label):
+    async def exercise():
+        app = PiSessionsApp(select_mode=select_mode)
+        with patch.object(appmod, "discover_projects", lambda **_kw: _fake_projects()):
+            async with app.run_test(size=(120, 40)) as pilot:
+                await app.workers.wait_for_complete()
+                await pilot.press("tab", "j")
+                assert app.screen.active_bindings["r"].binding.description == label
+                await pilot.press("r")
+        assert app.return_value == ResumeRequest("s2", "/tmp/x", "/nonexistent/s2.jsonl")
+
+    asyncio.run(exercise())
+
+
+def test_picker_disables_management_and_rejects_archived_selection():
+    async def exercise():
+        projects = _fake_projects()
+        projects[0].sessions[0].is_archived = True
+        app = PiSessionsApp(select_mode=True)
+        with patch.object(appmod, "discover_projects", lambda **_kw: projects):
+            async with app.run_test(size=(120, 40)) as pilot:
+                await app.workers.wait_for_complete()
+                for key in ("a", "d", "n", "e", "l", "c"):
+                    assert key not in app.screen.active_bindings
+                    await pilot.press(key)
+                    assert len(app.screen_stack) == 1
+                await pilot.press("r")
+                assert "restore it in standalone pisessions" in str(
+                    app.query_one("#status", Static).render()
+                )
+                await pilot.press("q")
+        assert app.return_value is None
+
+    asyncio.run(exercise())
 
 
 async def _exercise_export(tmp_path: Path) -> None:

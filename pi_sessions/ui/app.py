@@ -637,6 +637,7 @@ class PiSessionsApp(App):
     BINDINGS = [
         Binding("q", "quit", "Quit"),
         Binding("r", "resume", "Resume"),
+        Binding("r", "select_session", "Select"),
         Binding("c", "copy_resume", "Copy command"),
         Binding("a", "archive", "Archive"),
         Binding("a", "restore", "Restore"),
@@ -652,8 +653,9 @@ class PiSessionsApp(App):
         Binding("k", "cursor_up", "Up", show=False),
     ]
 
-    def __init__(self) -> None:
+    def __init__(self, *, select_mode: bool = False) -> None:
         super().__init__()
+        self._select_mode = select_mode
         self.projects: list[Project] = []
         self._cache = TokenCache()
         self._aliases = ProjectAliases()
@@ -764,8 +766,9 @@ class PiSessionsApp(App):
         interval = _auto_refresh_seconds()
         if interval:
             self.set_interval(interval, self._tick_refresh)
-        # live documents need a tighter loop than the session list
-        self.set_interval(2.0, self._tick_watches)
+        if not self._select_mode:
+            # live documents need a tighter loop than the session list
+            self.set_interval(2.0, self._tick_watches)
         # re-render the details pane when the theme changes (palette, p)
         self.watch(self, "theme", self._on_theme_changed, init=False)
 
@@ -1283,7 +1286,9 @@ class PiSessionsApp(App):
             return None
         if s.is_archived:
             p = self._current_project()
-            if p is not None and p.is_archived:
+            if self._select_mode:
+                self._set_status("Session is archived — restore it in standalone pisessions first")
+            elif p is not None and p.is_archived:
                 self._set_status(
                     "Project is archived — restore the whole project (a on Projects pane)"
                 )
@@ -1297,6 +1302,9 @@ class PiSessionsApp(App):
         s = self._selected_session()
         if s is not None:
             self.exit(_resume_request(s))
+
+    def action_select_session(self) -> None:
+        self.action_resume()
 
     def action_copy_resume(self) -> None:
         s = self._selected_session()
@@ -1448,6 +1456,12 @@ class PiSessionsApp(App):
         return s is not None and s.is_archived
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        if action == "select_session":
+            return self._select_mode
+        if self._select_mode and action in {
+            "resume", "copy_resume", "archive", "restore", "delete", "rename", "export", "watch",
+        }:
+            return False
         # `a` is bound twice; exactly one of archive/restore is active,
         # so the footer label follows the selected item
         if action == "archive":

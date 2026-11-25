@@ -70,6 +70,24 @@ On a narrow terminal (half a screen) the panes stack instead:
 
 ![pi-sessions in a narrow terminal](docs/screenshot-narrow.svg)
 
+### Use as a session picker
+
+```bash
+pisessions --select --output /path/to/new-selection.json
+```
+
+Picker mode keeps browsing, filtering, and previews, but disables the
+management, export, and live-document actions. Press `r` (**Select**) to
+return an unarchived session without launching Pi, or `q` to cancel.
+
+For integrations, run the picker with terminal input and output attached and
+pass an unused output path, ideally inside a private temporary directory. A
+selection creates the file with the absolute session JSONL path encoded as a
+UTF-8 JSON string. Cancelling exits successfully without creating the file.
+Read the result only on a successful exit; the picker never overwrites an
+existing output file. The path is local to the picker, with no
+`PI_SESSIONS_RESUME_ROOT` remapping.
+
 ## Settings
 
 | Variable | Default | Purpose |
