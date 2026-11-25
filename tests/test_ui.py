@@ -37,8 +37,8 @@ def _fake_projects() -> list[Project]:
     return [alpha, beta]
 
 
-async def _exercise_filters() -> None:
-    app = PiSessionsApp()
+async def _exercise_filters(select_mode: bool) -> None:
+    app = PiSessionsApp(select_mode=select_mode)
     with patch.object(appmod, "discover_projects", lambda **_kw: _fake_projects()):
         async with app.run_test(size=(120, 40)) as pilot:
             await app.workers.wait_for_complete()
@@ -87,8 +87,9 @@ async def _exercise_filters() -> None:
             assert st.row_count == 2
 
 
-def test_filter_projects_and_sessions():
-    asyncio.run(_exercise_filters())
+@pytest.mark.parametrize("select_mode", [False, True])
+def test_filter_projects_and_sessions(select_mode):
+    asyncio.run(_exercise_filters(select_mode))
 
 
 @pytest.mark.parametrize(("select_mode", "label"), [(False, "Resume"), (True, "Select")])
@@ -106,6 +107,34 @@ def test_r_returns_highlighted_session(select_mode, label):
     asyncio.run(exercise())
 
 
+@pytest.mark.parametrize(("navigation", "session_id"), [((), "s1"), (("tab", "j"), "s2")])
+def test_picker_enter_accepts_highlighted_session(navigation, session_id):
+    async def exercise():
+        app = PiSessionsApp(select_mode=True)
+        with patch.object(appmod, "discover_projects", lambda **_kw: _fake_projects()):
+            async with app.run_test(size=(120, 40)) as pilot:
+                await app.workers.wait_for_complete()
+                assert app.screen.active_bindings["enter"].binding.description == "Select"
+                await pilot.press(*navigation, "enter")
+        assert app.return_value == ResumeRequest(session_id, "/tmp/x", f"/nonexistent/{session_id}.jsonl")
+
+    asyncio.run(exercise())
+
+
+def test_picker_escape_cancels_without_selection():
+    async def exercise():
+        app = PiSessionsApp(select_mode=True)
+        with patch.object(appmod, "discover_projects", lambda **_kw: _fake_projects()):
+            async with app.run_test(size=(120, 40)) as pilot:
+                await app.workers.wait_for_complete()
+                assert app.return_code is None
+                await pilot.press("escape")
+                assert app.return_code == 0
+        assert app.return_value is None
+
+    asyncio.run(exercise())
+
+
 def test_picker_disables_management_and_rejects_archived_selection():
     async def exercise():
         projects = _fake_projects()
@@ -118,7 +147,7 @@ def test_picker_disables_management_and_rejects_archived_selection():
                     assert key not in app.screen.active_bindings
                     await pilot.press(key)
                     assert len(app.screen_stack) == 1
-                await pilot.press("r")
+                await pilot.press("enter")
                 assert "restore it in standalone pisessions" in str(
                     app.query_one("#status", Static).render()
                 )

@@ -77,8 +77,10 @@ pisessions --select --output /path/to/new-selection.json
 ```
 
 Picker mode keeps browsing, filtering, and previews, but disables the
-management, export, and live-document actions. Press `r` (**Select**) to
-return an unarchived session without launching Pi, or `q` to cancel.
+management, export, and live-document actions. Press **Enter** (or `r`) to
+return the highlighted unarchived session without launching Pi, or **Escape**
+(or `q`) to cancel. While editing a filter, Enter applies it and Escape clears
+it first.
 
 For integrations, run the picker with terminal input and output attached and
 pass an unused output path, ideally inside a private temporary directory. A

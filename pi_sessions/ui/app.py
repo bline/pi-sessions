@@ -636,8 +636,12 @@ class PiSessionsApp(App):
 
     BINDINGS = [
         Binding("q", "quit", "Quit"),
+        Binding("escape", "cancel_picker", "Cancel"),
         Binding("r", "resume", "Resume"),
-        Binding("r", "select_session", "Select"),
+        Binding("r", "select_session", "Select", show=False),
+        # DataTable binds Enter itself; override the key, not its row-selected
+        # event, so clicking a row still previews it rather than accepting it.
+        Binding("enter", "select_session", "Select", priority=True),
         Binding("c", "copy_resume", "Copy command"),
         Binding("a", "archive", "Archive"),
         Binding("a", "restore", "Restore"),
@@ -1306,6 +1310,9 @@ class PiSessionsApp(App):
     def action_select_session(self) -> None:
         self.action_resume()
 
+    def action_cancel_picker(self) -> None:
+        self.exit()
+
     def action_copy_resume(self) -> None:
         s = self._selected_session()
         if s is None:
@@ -1456,8 +1463,12 @@ class PiSessionsApp(App):
         return s is not None and s.is_archived
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
-        if action == "select_session":
-            return self._select_mode
+        if action in {"select_session", "cancel_picker"}:
+            return (
+                self._select_mode
+                and len(self.screen_stack) == 1
+                and not isinstance(self.focused, Input)
+            )
         if self._select_mode and action in {
             "resume", "copy_resume", "archive", "restore", "delete", "rename", "export", "watch",
         }:
