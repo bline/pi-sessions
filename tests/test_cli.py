@@ -19,7 +19,8 @@ def commands(monkeypatch):
     return app, launch, resume
 
 
-def test_select_writes_absolute_path_without_launching_pi(commands, tmp_path, monkeypatch, capsys):
+@pytest.mark.parametrize("flag", ["--select", "--advanced-select"])
+def test_select_writes_absolute_path_without_launching_pi(flag, commands, tmp_path, monkeypatch, capsys):
     app, launch, resume = commands
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("PI_SESSIONS_RESUME_ROOT", "/mounted-elsewhere")
@@ -27,38 +28,43 @@ def test_select_writes_absolute_path_without_launching_pi(commands, tmp_path, mo
     app.run.return_value = ResumeRequest("abc", "/other/project", path)
     output = tmp_path / "result.json"
 
-    assert cli.main(["--select", "--output", str(output)]) == 0
+    assert cli.main([flag, "--output", str(output)]) == 0
     assert json.loads(output.read_text(encoding="utf-8")) == str(tmp_path / path)
     assert capsys.readouterr().out == ""
-    launch.assert_called_once_with(select_mode=True)
+    launch.assert_called_once_with(select_mode=flag == "--select", advanced_select=flag == "--advanced-select")
     resume.assert_not_called()
 
 
+@pytest.mark.parametrize("flag", ["--select", "--advanced-select"])
 @pytest.mark.parametrize("return_code", [0, 1])
-def test_select_cancel_or_ui_failure_writes_nothing(commands, tmp_path, return_code):
+def test_select_cancel_or_ui_failure_writes_nothing(flag, commands, tmp_path, return_code):
     app, _, resume = commands
     app.run.return_value = None
     app.return_code = return_code
     output = tmp_path / "result.json"
 
-    assert cli.main(["--select", "--output", str(output)]) == return_code
+    assert cli.main([flag, "--output", str(output)]) == return_code
     assert not output.exists()
     resume.assert_not_called()
 
 
-def test_select_never_overwrites_output(commands, tmp_path, capsys):
+@pytest.mark.parametrize("flag", ["--select", "--advanced-select"])
+def test_select_never_overwrites_output(flag, commands, tmp_path, capsys):
     app, _, resume = commands
     app.run.return_value = ResumeRequest("abc", "", "/sessions/abc.jsonl")
     output = tmp_path / "result.json"
     output.write_text("previous data", encoding="utf-8")
 
-    assert cli.main(["--select", "--output", str(output)]) == 1
+    assert cli.main([flag, "--output", str(output)]) == 1
     assert "Could not write selection" in capsys.readouterr().err
     assert output.read_text(encoding="utf-8") == "previous data"
     resume.assert_not_called()
 
 
-@pytest.mark.parametrize("argv", [["--select"], ["--output", "result.json"]])
+@pytest.mark.parametrize("argv", [
+    ["--select"], ["--advanced-select"], ["--output", "result.json"],
+    ["--select", "--advanced-select", "--output", "result.json"],
+])
 def test_picker_requires_both_arguments(commands, argv):
     _, launch, _ = commands
 
@@ -74,5 +80,5 @@ def test_default_mode_still_resumes(commands):
     app.run.return_value = request
 
     assert cli.main([]) == 0
-    launch.assert_called_once_with(select_mode=False)
+    launch.assert_called_once_with(select_mode=False, advanced_select=False)
     resume.assert_called_once_with(request)

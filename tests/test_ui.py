@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from pathlib import Path
 from unittest.mock import patch
 
@@ -37,8 +38,8 @@ def _fake_projects() -> list[Project]:
     return [alpha, beta]
 
 
-async def _exercise_filters(select_mode: bool) -> None:
-    app = PiSessionsApp(select_mode=select_mode)
+async def _exercise_filters(select_mode: bool, advanced_select: bool) -> None:
+    app = PiSessionsApp(select_mode=select_mode, advanced_select=advanced_select)
     with patch.object(appmod, "discover_projects", lambda **_kw: _fake_projects()):
         async with app.run_test(size=(120, 40)) as pilot:
             await app.workers.wait_for_complete()
@@ -87,15 +88,17 @@ async def _exercise_filters(select_mode: bool) -> None:
             assert st.row_count == 2
 
 
-@pytest.mark.parametrize("select_mode", [False, True])
-def test_filter_projects_and_sessions(select_mode):
-    asyncio.run(_exercise_filters(select_mode))
+@pytest.mark.parametrize(("select_mode", "advanced_select"), [(False, False), (True, False), (False, True)])
+def test_filter_projects_and_sessions(select_mode, advanced_select):
+    asyncio.run(_exercise_filters(select_mode, advanced_select))
 
 
-@pytest.mark.parametrize(("select_mode", "label"), [(False, "Resume"), (True, "Select")])
-def test_r_returns_highlighted_session(select_mode, label):
+@pytest.mark.parametrize(("select_mode", "advanced_select", "label"), [
+    (False, False, "Resume"), (True, False, "Select"), (False, True, "Select"),
+])
+def test_r_returns_highlighted_session(select_mode, advanced_select, label):
     async def exercise():
-        app = PiSessionsApp(select_mode=select_mode)
+        app = PiSessionsApp(select_mode=select_mode, advanced_select=advanced_select)
         with patch.object(appmod, "discover_projects", lambda **_kw: _fake_projects()):
             async with app.run_test(size=(120, 40)) as pilot:
                 await app.workers.wait_for_complete()
@@ -121,9 +124,10 @@ def test_picker_enter_accepts_highlighted_session(navigation, session_id):
     asyncio.run(exercise())
 
 
-def test_picker_escape_cancels_without_selection():
+@pytest.mark.parametrize("advanced_select", [False, True])
+def test_picker_escape_cancels_without_selection(advanced_select):
     async def exercise():
-        app = PiSessionsApp(select_mode=True)
+        app = PiSessionsApp(select_mode=not advanced_select, advanced_select=advanced_select)
         with patch.object(appmod, "discover_projects", lambda **_kw: _fake_projects()):
             async with app.run_test(size=(120, 40)) as pilot:
                 await app.workers.wait_for_complete()
@@ -157,7 +161,52 @@ def test_picker_disables_management_and_rejects_archived_selection():
     asyncio.run(exercise())
 
 
-async def _exercise_export(tmp_path: Path) -> None:
+@pytest.mark.parametrize("restore", [False, True])
+def test_advanced_picker_archives_and_can_restore_then_select(fake_base, restore):
+    transcript = next(fake_base.glob("*/*.jsonl"))
+    os.utime(transcript, (0, 0))  # Last modified long ago; use the normal Archive guard.
+    archived = transcript.parent / "archived" / transcript.name
+    discover = appmod.discover_projects
+
+    async def exercise():
+        app = PiSessionsApp(advanced_select=True)
+        with patch.object(appmod, "discover_projects", lambda **kw: discover(base=fake_base, **kw)):
+            async with app.run_test(size=(120, 40)) as pilot:
+                await app.workers.wait_for_complete()
+                await pilot.press("tab")  # Act on the session, not the whole project.
+                assert {"a", "d", "n", "e", "l", "c"} <= app.screen.active_bindings.keys()
+                assert app.screen.active_bindings["a"].binding.description == "Archive"
+                await pilot.press("d")
+                assert len(app.screen_stack) == 2
+                await pilot.press("enter")  # Delete dialog defaults to No, not picker Select.
+                assert len(app.screen_stack) == 1 and transcript.is_file()
+                await pilot.press("a")
+                await app.workers.wait_for_complete()
+                await pilot.pause()
+                assert app.return_code is None
+                assert archived.is_file() and not transcript.exists()
+                assert app.screen.active_bindings["a"].binding.description == "Restore"
+                await pilot.press("enter")
+                assert app.return_code is None
+                assert "restore it first" in str(app.query_one("#status", Static).render())
+                if restore:
+                    await pilot.press("a")
+                    await app.workers.wait_for_complete()
+                    await pilot.pause()
+                    assert transcript.is_file() and not archived.exists()
+                    await pilot.press("enter")
+                else:
+                    await pilot.press("escape")
+        if restore:
+            assert isinstance(app.return_value, ResumeRequest)
+            assert app.return_value.file == str(transcript)
+        else:
+            assert app.return_value is None and archived.is_file()
+
+    asyncio.run(exercise())
+
+
+async def _exercise_export(tmp_path: Path, advanced_select: bool) -> None:
     import json
 
     from textual.widgets import Input
@@ -171,7 +220,7 @@ async def _exercise_export(tmp_path: Path) -> None:
     )
     projects[0].sessions[0].jsonl_path = transcript
 
-    app = PiSessionsApp()
+    app = PiSessionsApp(advanced_select=advanced_select)
     with patch.object(appmod, "discover_projects", lambda **_kw: projects):
         async with app.run_test(size=(120, 40)) as pilot:
             await app.workers.wait_for_complete()
@@ -191,10 +240,16 @@ async def _exercise_export(tmp_path: Path) -> None:
             await pilot.press("escape")
             await pilot.pause()
             assert len([p for p in tmp_path.iterdir() if p.suffix == ".md"]) == 1
+            assert len(app.screen_stack) == 1 and app.return_code is None
+            if advanced_select:
+                await pilot.press("enter")
+    if advanced_select:
+        assert app.return_value == ResumeRequest("s1", "/tmp/x", str(transcript))
 
 
-def test_export_from_ui(tmp_path):
-    asyncio.run(_exercise_export(tmp_path))
+@pytest.mark.parametrize("advanced_select", [False, True])
+def test_export_from_ui(tmp_path, advanced_select):
+    asyncio.run(_exercise_export(tmp_path, advanced_select))
 
 
 async def _exercise_refresh_keeps_selection() -> None:

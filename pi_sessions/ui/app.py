@@ -657,9 +657,10 @@ class PiSessionsApp(App):
         Binding("k", "cursor_up", "Up", show=False),
     ]
 
-    def __init__(self, *, select_mode: bool = False) -> None:
+    def __init__(self, *, select_mode: bool = False, advanced_select: bool = False) -> None:
         super().__init__()
-        self._select_mode = select_mode
+        self._select_mode = select_mode or advanced_select
+        self._management_enabled = not self._select_mode or advanced_select
         self.projects: list[Project] = []
         self._cache = TokenCache()
         self._aliases = ProjectAliases()
@@ -770,7 +771,7 @@ class PiSessionsApp(App):
         interval = _auto_refresh_seconds()
         if interval:
             self.set_interval(interval, self._tick_refresh)
-        if not self._select_mode:
+        if self._management_enabled:
             # live documents need a tighter loop than the session list
             self.set_interval(2.0, self._tick_watches)
         # re-render the details pane when the theme changes (palette, p)
@@ -1290,8 +1291,8 @@ class PiSessionsApp(App):
             return None
         if s.is_archived:
             p = self._current_project()
-            if self._select_mode:
-                self._set_status("Session is archived — restore it in standalone pisessions first")
+            if not self._management_enabled:
+                self._set_status("Session is archived — restore it in standalone pisessions or advanced picker mode first")
             elif p is not None and p.is_archived:
                 self._set_status(
                     "Project is archived — restore the whole project (a on Projects pane)"
@@ -1469,8 +1470,10 @@ class PiSessionsApp(App):
                 and len(self.screen_stack) == 1
                 and not isinstance(self.focused, Input)
             )
-        if self._select_mode and action in {
-            "resume", "copy_resume", "archive", "restore", "delete", "rename", "export", "watch",
+        if self._select_mode and action == "resume":
+            return False
+        if not self._management_enabled and action in {
+            "copy_resume", "archive", "restore", "delete", "rename", "export", "watch",
         }:
             return False
         # `a` is bound twice; exactly one of archive/restore is active,

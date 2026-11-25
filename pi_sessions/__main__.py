@@ -11,21 +11,27 @@ from .ui.app import PiSessionsApp
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Browse and manage Pi sessions.")
-    parser.add_argument(
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument(
         "--select", action="store_true", help="select a session without launching Pi"
+    )
+    modes.add_argument(
+        "--advanced-select", action="store_true",
+        help="keep browser management actions while selecting without launching Pi",
     )
     parser.add_argument(
         "--output", type=Path, metavar="FILE", help="new file for the selected path (JSON string)"
     )
     args = parser.parse_args(argv)
-    if args.select and args.output is None:
-        parser.error("--select requires --output FILE")
-    if args.output is not None and not args.select:
-        parser.error("--output requires --select")
+    picker_mode = args.select or args.advanced_select
+    if picker_mode and args.output is None:
+        parser.error("--select and --advanced-select require --output FILE")
+    if args.output is not None and not picker_mode:
+        parser.error("--output requires --select or --advanced-select")
 
-    app = PiSessionsApp(select_mode=args.select)
+    app = PiSessionsApp(select_mode=args.select, advanced_select=args.advanced_select)
     result = app.run()
-    if args.select and app.return_code:
+    if picker_mode and app.return_code:
         return app.return_code
     if not isinstance(result, ResumeRequest):
         return 0

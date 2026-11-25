@@ -82,7 +82,19 @@ return the highlighted unarchived session without launching Pi, or **Escape**
 (or `q`) to cancel. While editing a filter, Enter applies it and Escape clears
 it first.
 
-For integrations, run the picker with terminal input and output attached and
+Use `--advanced-select` instead of `--select` to keep the full browser's
+shortcuts, including Archive, Restore, Delete, Rename, Export, Copy command, and
+Live Doc:
+
+```bash
+pisessions --advanced-select --output /path/to/new-selection.json
+```
+
+The keys still have their normal meaning within dialogs. Cancelling the picker
+cancels only the selection; management changes already made are kept. Live Doc
+stops updating when the picker closes, but the Markdown file remains.
+
+For integrations, run either picker mode with terminal input and output attached and
 pass an unused output path, ideally inside a private temporary directory. A
 selection creates the file with the absolute session JSONL path encoded as a
 UTF-8 JSON string. Cancelling exits successfully without creating the file.
