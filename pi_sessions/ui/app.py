@@ -18,10 +18,10 @@ from textual.app import App, ComposeResult, SystemCommand
 from textual.binding import Binding
 from textual.color import Color as TextualColor
 from textual.command import CommandInput, CommandPalette
-from textual.containers import Container, Horizontal, VerticalScroll
+from textual.containers import Container, Horizontal, Vertical, VerticalScroll
 from textual.coordinate import Coordinate
 from textual.errors import NoWidget
-from textual.geometry import Region
+from textual.geometry import Region, Size
 from textual.message import Message
 from textual.screen import ModalScreen, Screen
 from textual.theme import ThemeProvider
@@ -417,53 +417,62 @@ class Tick(Checkbox):
     def BUTTON_INNER(self) -> str:  # noqa: N802 — overrides Textual's class attribute
         return "X" if self.value else " "
 
+    def get_content_height(self, container: Size, viewport: Size, width: int) -> int:
+        # ToggleButton pins this to 1; measure the wrapped label like any widget
+        return Widget.get_content_height(self, container, viewport, width)
 
-class SettingsScreen(ModalScreen[None]):
-    """User preferences; each change applies and saves immediately."""
+
+class SettingsPanel(Vertical):
+    """User preferences, docked right like the keys panel; each change applies and saves immediately."""
 
     DEFAULT_CSS = """
-    SettingsScreen {
-        align: center middle;
+    SettingsPanel {
+        split: right;
+        width: 33%;
+        min-width: 30;
+        max-width: 60;
+        height: 100%;
+        border-left: vkey $foreground 30%;
+        padding: 0 1;
     }
-
-    #dialog {
-        width: 60;
+    SettingsPanel #settings-close {
+        width: 100%;
+        height: 1;
+        content-align: right middle;
+    }
+    SettingsPanel #settings-close:hover {
+        color: $error;
+    }
+    SettingsPanel Tick {
+        width: 100%;
         height: auto;
-        padding: 1 2;
-        border: round $primary;
-        background: $surface;
+        text-wrap: wrap;
     }
-
-    .section {
+    SettingsPanel .section {
         text-style: bold;
-    }
-
-    #dialog-hint {
         margin-top: 1;
-        color: $text-muted;
     }
     """
 
-    BINDINGS = [Binding("escape", "dismiss", "Close")]
-
     def compose(self) -> ComposeResult:
-        with Container(id="dialog"):
-            yield Static("Display", classes="section")
-            yield Tick(
-                "Show Modified column in Sessions",
-                load_settings().get("show_modified", True),
-                id="show_modified",
-            )
-            yield Static("Details", classes="section")
-            yield Tick(
-                "Show resume command",
-                load_settings().get("show_resume_command", False),
-                id="show_resume_command",
-            )
-            yield Static("Esc to close", id="dialog-hint")
+        settings = load_settings()
+        yield Static("✕", id="settings-close")
+        yield Static("Display", classes="section")
+        yield Tick(
+            "Show Modified column in Sessions",
+            settings.get("show_modified", True),
+            id="show_modified",
+        )
+        yield Static("Details", classes="section")
+        yield Tick(
+            "Show resume command",
+            settings.get("show_resume_command", False),
+            id="show_resume_command",
+        )
 
-    def on_mount(self) -> None:
-        self.query_one("#dialog").border_title = "Settings"
+    def on_click(self, event: events.Click) -> None:
+        if event.widget is not None and event.widget.id == "settings-close":
+            self.remove()
 
     def on_checkbox_changed(self, event: Checkbox.Changed) -> None:
         if event.checkbox.id == "show_resume_command":
@@ -814,7 +823,7 @@ class PiSessionsApp(App):
 
     BINDINGS = [
         Binding("q", "quit", "Quit"),
-        Binding("escape", "hide_help_panel", "Close keys panel", show=False),
+        Binding("escape", "hide_help_panel", "Close side panel", show=False),
         Binding("r", "resume", "Resume"),
         Binding("c", "copy_resume", "Copy command"),
         Binding("a", "archive", "Archive"),
@@ -917,7 +926,16 @@ class PiSessionsApp(App):
 
     def action_show_help_panel(self) -> None:
         if not self.screen.query(HelpPanel):
+            self.screen.query(SettingsPanel).remove()  # one side panel at a time
             self.screen.mount(ClosableHelpPanel())
+
+    def action_hide_help_panel(self) -> None:
+        self.screen.query("HelpPanel, SettingsPanel").remove()
+
+    def action_show_settings(self) -> None:
+        if not self.screen.query(SettingsPanel):
+            self.screen.query(HelpPanel).remove()  # one side panel at a time
+            self.screen.mount(SettingsPanel())
 
     def get_system_commands(self, screen: Screen) -> Iterable[SystemCommand]:
         yield from super().get_system_commands(screen)
@@ -926,9 +944,7 @@ class PiSessionsApp(App):
             "Put every pane back to its default size (wide and narrow layouts)",
             self.action_reset_layout,
         )
-        yield SystemCommand(
-            "Settings", "Display preferences", lambda: self.push_screen(SettingsScreen())
-        )
+        yield SystemCommand("Settings", "Display preferences", self.action_show_settings)
 
     def set_show_modified(self, show: bool) -> None:
         self._show_modified = show
