@@ -814,6 +814,7 @@ class PiSessionsApp(App):
 
     BINDINGS = [
         Binding("q", "quit", "Quit"),
+        Binding("escape", "hide_help_panel", "Close keys panel", show=False),
         Binding("r", "resume", "Resume"),
         Binding("c", "copy_resume", "Copy command"),
         Binding("a", "archive", "Archive"),
